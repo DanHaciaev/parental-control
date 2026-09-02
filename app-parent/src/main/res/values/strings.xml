@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Родительский контроль</string>
+    <string name="device_admin_description">Требует код подтверждения перед удалением приложения «Родительский контроль».</string>
+    <string name="accessibility_service_description">Просит код подтверждения при попытке удалить «Родительский контроль» через настройки телефона.</string>
+</resources>

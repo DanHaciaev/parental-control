@@ -1,0 +1,25 @@
+package com.teo.child
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import com.teo.child.nav.ChildNavHost
+import com.teo.child.ui.theme.ParentalControlTheme
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            ParentalControlTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    ChildNavHost()
+                }
+            }
+        }
+    }
+}

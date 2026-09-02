@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Семейный помощник</string>
+    <string name="device_admin_description">Не даёт удалить приложение «Семейный помощник» без разрешения родителя.</string>
+    <string name="accessibility_service_description">Не позволяет удалить «Семейный помощник» или заблокированные родителем приложения через настройки телефона.</string>
+</resources>

@@ -1,0 +1,5 @@
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No special policies requested — being an active admin is enough to gate uninstall
+         behind the "deactivate device admin" confirmation screen, which is all we need. -->
+    <uses-policies />
+</device-admin>
