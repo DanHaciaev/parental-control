@@ -27,9 +27,6 @@ object UsageAccessHelper {
     }
 
     fun openSettings(context: Context) {
-        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
+        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
     }
 }

@@ -32,4 +32,6 @@ dependencies {
 
     api(libs.core.ktx)
     api(libs.kotlinx.coroutines.play.services)
+
+    api(libs.stream.webrtc.android)
 }

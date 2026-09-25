@@ -2,8 +2,10 @@ package com.teo.child.work
 
 import android.app.ActivityManager
 import android.content.Context
+import android.location.LocationManager
 import android.os.BatteryManager
 import android.os.Build
+import androidx.core.location.LocationManagerCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -12,6 +14,7 @@ import com.teo.child.data.ChildPreferences
 import com.teo.child.monitor.MonitorForegroundService
 import com.teo.child.permission.AccessibilityPermissionHelper
 import com.teo.child.permission.BatteryOptimizationHelper
+import com.teo.child.permission.NotificationPolicyPermissionHelper
 import com.teo.child.permission.OverlayPermissionHelper
 import com.teo.child.permission.UsageAccessHelper
 import com.teo.core.model.DeviceStatus
@@ -40,7 +43,7 @@ class DeviceStatusWorker @AssistedInject constructor(
             val batteryPercent = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
             val isCharging = batteryManager.isCharging
 
-            deviceStatusRepository.updateStatus(
+            deviceStatusRepository.updateHealthStatus(
                 familyId,
                 DeviceStatus(
                     batteryPercent = batteryPercent,
@@ -52,13 +55,21 @@ class DeviceStatusWorker @AssistedInject constructor(
                     usageAccessEnabled = UsageAccessHelper.hasUsageAccess(applicationContext),
                     overlayEnabled = OverlayPermissionHelper.hasOverlayPermission(applicationContext),
                     deviceAdminActive = DeviceAdminHelper.isActive(applicationContext),
-                    batteryOptimizationExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(applicationContext)
+                    batteryOptimizationExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(applicationContext),
+                    notificationPolicyAccess = NotificationPolicyPermissionHelper.isGranted(applicationContext),
+                    locationServicesEnabled = isLocationServicesEnabled()
                 )
             )
             Result.success()
         } catch (e: Exception) {
             Result.retry()
         }
+    }
+
+    private fun isLocationServicesEnabled(): Boolean {
+        val locationManager = applicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return true
+        return runCatching { LocationManagerCompat.isLocationEnabled(locationManager) }.getOrDefault(true)
     }
 
     private fun isMonitorServiceRunning(): Boolean {

@@ -27,19 +27,30 @@ class PinChallengeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PinChallengeUiState())
     val uiState: StateFlow<PinChallengeUiState> = _uiState.asStateFlow()
 
+    /** Re-arms the challenge — call when re-locking the app, since the ViewModel outlives this one screen visit. */
+    fun lock() {
+        _uiState.value = PinChallengeUiState()
+    }
+
     fun verify(pin: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, errorMessage = null) }
-            val uid = auth.currentUser?.uid
-            val familyId = uid?.let { familyRepository.findFamilyIdForParent(it) }
-            if (familyId == null) {
-                _uiState.update { it.copy(loading = false, errorMessage = "Не удалось проверить код") }
-                return@launch
-            }
-            val correct = familyRepository.verifyProtectionPin(familyId, pin)
-            _uiState.update {
-                if (correct) it.copy(loading = false, unlocked = true)
-                else it.copy(loading = false, errorMessage = "Неверный код")
+            try {
+                val uid = auth.currentUser?.uid
+                val familyId = uid?.let { familyRepository.findFamilyIdForParent(it) }
+                if (familyId == null) {
+                    _uiState.update { it.copy(loading = false, errorMessage = "Не удалось проверить код") }
+                    return@launch
+                }
+                val correct = familyRepository.verifyProtectionPin(familyId, pin)
+                _uiState.update {
+                    if (correct) it.copy(loading = false, unlocked = true)
+                    else it.copy(loading = false, errorMessage = "Неверный код")
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(loading = false, errorMessage = "Нет связи — проверьте интернет и попробуйте ещё раз")
+                }
             }
         }
     }

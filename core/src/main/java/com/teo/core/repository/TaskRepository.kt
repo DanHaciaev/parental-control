@@ -1,5 +1,6 @@
 package com.teo.core.repository
 
+import android.util.Base64
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -25,11 +26,28 @@ class TaskRepository @Inject constructor(
     private fun tasksRef(familyId: String) =
         firestore.collection(FirestorePaths.FAMILIES).document(familyId).collection(FirestorePaths.TASKS)
 
-    suspend fun createTask(familyId: String, title: String, rewardMinutes: Int, rewardPackageName: String?): String {
-        val doc = tasksRef(familyId).add(
-            Task(title = title, rewardMinutes = rewardMinutes, rewardPackageName = rewardPackageName)
+    /** [photoBytes], if provided, is embedded directly in the task document as base64 — Firebase
+     *  Storage now requires a billing account to enable, so the (already-compressed, see
+     *  ImageCompression) photo just rides along in Firestore, which stays free at this scale. */
+    suspend fun createTask(
+        familyId: String,
+        title: String,
+        rewardMinutes: Int,
+        rewardPackageName: String?,
+        photoBytes: ByteArray? = null,
+        linkUrl: String? = null
+    ): String {
+        val docRef = tasksRef(familyId).document()
+        docRef.set(
+            Task(
+                title = title,
+                rewardMinutes = rewardMinutes,
+                rewardPackageName = rewardPackageName,
+                photoBase64 = photoBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) },
+                linkUrl = linkUrl?.takeIf { it.isNotBlank() }
+            )
         ).await()
-        return doc.id
+        return docRef.id
     }
 
     fun observeTasks(familyId: String): Flow<List<Task>> = callbackFlow {
@@ -54,12 +72,18 @@ class TaskRepository @Inject constructor(
         ).await()
     }
 
+    /** Clears the photo once its lifecycle ends — it's only ever needed while the task is open,
+     *  and dropping it keeps task documents small once a decision has been made. */
     suspend fun approveTask(familyId: String, taskId: String) {
-        tasksRef(familyId).document(taskId).update("status", TaskStatus.APPROVED.name).await()
+        tasksRef(familyId).document(taskId).update(
+            mapOf("status" to TaskStatus.APPROVED.name, "photoBase64" to FieldValue.delete())
+        ).await()
     }
 
     suspend fun rejectTask(familyId: String, taskId: String) {
-        tasksRef(familyId).document(taskId).update("status", TaskStatus.REJECTED.name).await()
+        tasksRef(familyId).document(taskId).update(
+            mapOf("status" to TaskStatus.REJECTED.name, "photoBase64" to FieldValue.delete())
+        ).await()
     }
 
     suspend fun deleteTask(familyId: String, taskId: String) {

@@ -12,3 +12,7 @@ local.properties
 google-services.json
 *.jks
 *.keystore
+
+# .NET (windows-client)
+**/bin/
+**/obj/

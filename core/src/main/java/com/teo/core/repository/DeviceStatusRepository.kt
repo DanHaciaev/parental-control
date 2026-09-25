@@ -1,6 +1,7 @@
 package com.teo.core.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.teo.core.FirestorePaths
 import com.teo.core.model.DeviceStatus
 import kotlinx.coroutines.channels.awaitClose
@@ -20,6 +21,44 @@ class DeviceStatusRepository @Inject constructor(
 
     suspend fun updateStatus(familyId: String, status: DeviceStatus) {
         statusDoc(familyId).set(status).await()
+    }
+
+    /**
+     * Partial write for the periodic health-check fields only. Must NOT touch currentForegroundApp/
+     * currentForegroundAppLabel — those are written far more often by [updateForegroundApp], and a full
+     * [updateStatus] object built without them would otherwise null them back out every time this runs.
+     */
+    suspend fun updateHealthStatus(familyId: String, status: DeviceStatus) {
+        statusDoc(familyId).set(
+            mapOf(
+                "batteryPercent" to status.batteryPercent,
+                // Firestore's Kotlin bean-mapper strips the "is" prefix off boolean properties, so the
+                // field that round-trips through DeviceStatus.isCharging is "charging", not "isCharging" —
+                // matching that here keeps this write consistent with the full-object updateStatus() path.
+                "charging" to status.isCharging,
+                "appVersion" to status.appVersion,
+                "osVersion" to status.osVersion,
+                "protectionServiceRunning" to status.protectionServiceRunning,
+                "accessibilityEnabled" to status.accessibilityEnabled,
+                "usageAccessEnabled" to status.usageAccessEnabled,
+                "overlayEnabled" to status.overlayEnabled,
+                "deviceAdminActive" to status.deviceAdminActive,
+                "batteryOptimizationExempt" to status.batteryOptimizationExempt,
+                "notificationPolicyAccess" to status.notificationPolicyAccess
+            ),
+            SetOptions.merge()
+        ).await()
+    }
+
+    /** Partial write — used for the frequently-changing "current app" field between full status syncs. */
+    suspend fun updateForegroundApp(familyId: String, packageName: String?, appLabel: String?) {
+        statusDoc(familyId).set(
+            mapOf(
+                "currentForegroundApp" to packageName,
+                "currentForegroundAppLabel" to appLabel
+            ),
+            SetOptions.merge()
+        ).await()
     }
 
     fun observeStatus(familyId: String): Flow<DeviceStatus?> = callbackFlow {

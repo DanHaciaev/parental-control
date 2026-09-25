@@ -14,6 +14,7 @@ object WorkScheduler {
     /** All periodic jobs the child device relies on — call this everywhere protection can start (app open, boot, watchdog). */
     fun scheduleAll(context: Context) {
         scheduleUsageUpload(context)
+        scheduleHourlyUsageUpload(context)
         scheduleServiceWatchdog(context)
         scheduleLocationUpload(context)
         scheduleDeviceStatus(context)
@@ -25,6 +26,7 @@ object WorkScheduler {
         val wm = WorkManager.getInstance(context)
         wm.enqueue(OneTimeWorkRequestBuilder<LocationUploadWorker>().setConstraints(constraints).build())
         wm.enqueue(OneTimeWorkRequestBuilder<UsageUploadWorker>().setConstraints(constraints).build())
+        wm.enqueue(OneTimeWorkRequestBuilder<HourlyUsageUploadWorker>().setConstraints(constraints).build())
         wm.enqueue(OneTimeWorkRequestBuilder<DeviceStatusWorker>().setConstraints(constraints).build())
     }
 
@@ -34,6 +36,15 @@ object WorkScheduler {
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "usage_upload", ExistingPeriodicWorkPolicy.KEEP, request
+        )
+    }
+
+    fun scheduleHourlyUsageUpload(context: Context) {
+        val request = PeriodicWorkRequestBuilder<HourlyUsageUploadWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "hourly_usage_upload", ExistingPeriodicWorkPolicy.KEEP, request
         )
     }
 

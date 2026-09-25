@@ -77,4 +77,48 @@ class PairingRepository @Inject constructor(
             }
         }
     }
+
+    /**
+     * Claims a code for a non-phone device (e.g. the Windows laptop client) — a sibling to
+     * [claimCode], not a variant of it. Unlike childUid's single-slot claim, each device gets its
+     * own doc keyed by its own uid, so there's no mutual-exclusion state to update atomically:
+     * three sequential calls instead of a transaction is enough (worst case if step 3 fails after
+     * step 2 succeeded, the device is already paired and the code just lingers reusable until its
+     * 15-minute TTL — acceptable, same low-stakes tradeoff already accepted elsewhere here).
+     */
+    suspend fun claimCodeForDevice(code: String, deviceUid: String, label: String, type: String): String {
+        val codeRef = codesRef().document(code)
+        try {
+            val codeSnapshot = codeRef.get().await()
+            if (!codeSnapshot.exists()) throw PairingException("Код не найден")
+
+            val used = codeSnapshot.getBoolean("used") ?: false
+            if (used) throw PairingException("Код уже использован")
+
+            val expiresAt = codeSnapshot.getDate("expiresAt")
+            if (expiresAt == null || expiresAt.before(Date())) throw PairingException("Код истёк")
+
+            val familyId = codeSnapshot.getString("familyId") ?: throw PairingException("Некорректный код")
+
+            familiesRef().document(familyId).collection(FirestorePaths.DEVICES).document(deviceUid).set(
+                mapOf(
+                    "type" to type,
+                    "label" to label,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            codeRef.update("used", true).await()
+            return familyId
+        } catch (e: PairingException) {
+            throw e
+        } catch (e: FirebaseFirestoreException) {
+            throw when (e.code) {
+                FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    PairingException("Не удалось привязать устройство")
+                FirebaseFirestoreException.Code.NOT_FOUND ->
+                    PairingException("Семья не найдена")
+                else -> e
+            }
+        }
+    }
 }

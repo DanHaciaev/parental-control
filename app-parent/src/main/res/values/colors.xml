@@ -1,4 +1,5 @@
 <resources>
-    <color name="launcher_background">#7C5CFC</color>
-    <color name="warm_cream">#F7F6FB</color>
+    <color name="launcher_background">#3E7CB8</color>
+    <color name="warm_cream">#F3F7FB</color>
+    <color name="warm_ink">#1E2A38</color>
 </resources>

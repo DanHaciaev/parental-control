@@ -22,25 +22,25 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
 private val LightColors = lightColorScheme(
-    primary = Violet,
+    primary = SkyBlue,
     onPrimary = Color.White,
-    secondary = Sage,
-    background = WarmCream,
-    surface = WarmCreamSurface,
-    surfaceVariant = Color(0xFFEFEDF9),
-    onBackground = WarmInk,
-    onSurface = WarmInk,
+    secondary = Teal,
+    background = CloudWhite,
+    surface = CloudSurface,
+    surfaceVariant = CloudVariant,
+    onBackground = InkNavy,
+    onSurface = InkNavy,
     error = SoftAlert
 )
 
 private val DarkColors = darkColorScheme(
-    primary = VioletDark,
-    onPrimary = WarmNight,
-    secondary = SageDark,
-    background = WarmNight,
-    surface = WarmNightSurface,
-    onBackground = WarmCream,
-    onSurface = WarmCream,
+    primary = SkyBlueDark,
+    onPrimary = NightBlue,
+    secondary = TealDark,
+    background = NightBlue,
+    surface = NightSurface,
+    onBackground = CloudWhite,
+    onSurface = CloudWhite,
     error = SoftAlert
 )
 

@@ -72,6 +72,22 @@ fun PermissionsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.setLocationForegroundGranted(granted) }
 
+    val callPhoneLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setCallPhoneGranted(granted) }
+
+    val readPhoneStateLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setReadPhoneStateGranted(granted) }
+
+    val activityRecognitionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setActivityRecognitionGranted(granted) }
+
+    val recordAudioLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setRecordAudioGranted(granted) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -164,6 +180,45 @@ fun PermissionsScreen(
         )
         Spacer(Modifier.height(12.dp))
         PermissionRow(
+            title = "Экстренный звонок родителю",
+            description = "Чтобы кнопка SOS дозванивалась сразу, без открытия набора номера",
+            granted = uiState.callPhone,
+            onClick = { callPhoneLauncher.launch(Manifest.permission.CALL_PHONE) }
+        )
+        Spacer(Modifier.height(12.dp))
+        PermissionRow(
+            title = "Управление режимом звука (необязательно)",
+            description = "Позволяет родителю удалённо включить звук звонка",
+            granted = uiState.notificationPolicyAccess,
+            onClick = { NotificationPolicyPermissionHelper.openSettings(context) }
+        )
+        Spacer(Modifier.height(12.dp))
+        PermissionRow(
+            title = "Звук при входящем звонке (необязательно)",
+            description = "Чтобы любой звонок звучал, даже если телефон на беззвучном, и возвращал тишину после",
+            granted = uiState.readPhoneState,
+            onClick = { readPhoneStateLauncher.launch(Manifest.permission.READ_PHONE_STATE) }
+        )
+        Spacer(Modifier.height(12.dp))
+        PermissionRow(
+            title = "Датчик шагов (необязательно)",
+            description = "Чтобы задание «Шаги» считалось само, по шагомеру телефона",
+            granted = uiState.activityRecognition,
+            onClick = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+                }
+            }
+        )
+        Spacer(Modifier.height(12.dp))
+        PermissionRow(
+            title = "Микрофон (необязательно)",
+            description = "Для «Послушать вокруг» — при запросе от мамы микрофон включается сразу",
+            granted = uiState.recordAudio,
+            onClick = { recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+        )
+        Spacer(Modifier.height(12.dp))
+        PermissionRow(
             title = "Специальные возможности",
             description = "Дополнительная защита от удаления через настройки",
             granted = uiState.accessibility,
@@ -180,7 +235,7 @@ fun PermissionsScreen(
                     "Android может показать пункт «Специальные возможности» серым и заблокированным. " +
                         "Если так — на экране приложения нажмите значок ⋮ в правом верхнем углу и выберите " +
                         "«Разрешить ограниченные настройки», затем вернитесь и включите переключатель для " +
-                        "«Семейный помощник»."
+                        "«Nest Kid»."
                 )
             },
             confirmButton = {

@@ -24,6 +24,16 @@ interface UsageDao {
     @Query("SELECT * FROM usage WHERE uploaded = 0")
     suspend fun getPendingUpload(): List<UsageEntity>
 
+    /** Sums minutes only across apps currently tagged TIME_LIMIT — backs the total screen-time cap. */
+    @Query(
+        """
+        SELECT SUM(u.minutesUsedToday) FROM usage u
+        INNER JOIN rule_cache r ON u.packageName = r.packageName
+        WHERE u.dateKey = :dateKey AND r.mode = 'TIME_LIMIT'
+        """
+    )
+    suspend fun getTotalTimedMinutesForDay(dateKey: String): Int?
+
     @Query("UPDATE usage SET uploaded = 1 WHERE dateKey = :dateKey AND packageName = :packageName")
     suspend fun markUploaded(dateKey: String, packageName: String)
 

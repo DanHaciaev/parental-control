@@ -15,6 +15,9 @@ private fun AppRule.toEntity() = RuleCacheEntity(
     appLabel = appLabel,
     mode = mode.name,
     dailyLimitMinutes = dailyLimitMinutes,
+    weeklyLimitMinutesCsv = weeklyLimitMinutes
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { map -> (1..7).joinToString(",") { day -> (map[day.toString()] ?: -1).toString() } },
     bonusMinutesToday = bonusMinutesToday,
     bonusDateKey = bonusDateKey
 )

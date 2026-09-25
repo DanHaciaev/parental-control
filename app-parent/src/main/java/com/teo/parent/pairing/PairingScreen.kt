@@ -51,7 +51,7 @@ fun PairingScreen(
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "Установите приложение «Семейный помощник» на телефон ребёнка и введите там этот код. Код действует 15 минут.",
+            text = "Установите приложение «Nest Kid» на телефон ребёнка и введите там этот код. Код действует 15 минут.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)

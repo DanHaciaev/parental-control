@@ -7,3 +7,6 @@
 
 # Room entities are also reflected into by the generated DAO implementations.
 -keep class com.teo.child.data.local.** { *; }
+
+# WebRTC (listen-session audio) makes heavy use of JNI — keep the whole package intact.
+-keep class org.webrtc.** { *; }

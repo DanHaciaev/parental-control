@@ -55,6 +55,6 @@ class EventsViewModel @Inject constructor(
     fun markRead(event: EventLogEntry) {
         val familyId = _uiState.value.familyId ?: return
         if (event.read) return
-        viewModelScope.launch { eventRepository.markEventRead(familyId, event.id) }
+        viewModelScope.launch { runCatching { eventRepository.markEventRead(familyId, event.id) } }
     }
 }

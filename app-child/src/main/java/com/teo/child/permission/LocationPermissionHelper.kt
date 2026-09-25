@@ -37,9 +37,7 @@ object LocationPermissionHelper {
         val intent = Intent(
             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
             Uri.parse("package:${context.packageName}")
-        ).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        )
         context.startActivity(intent)
     }
 }

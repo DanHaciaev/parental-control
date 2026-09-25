@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Семейный помощник</string>
-    <string name="device_admin_description">Не даёт удалить приложение «Семейный помощник» без разрешения родителя.</string>
-    <string name="accessibility_service_description">Не позволяет удалить «Семейный помощник» или заблокированные родителем приложения через настройки телефона.</string>
+    <string name="app_name">Nest Kid</string>
+    <string name="device_admin_description">Позволяет родителю защищать работу приложения «Nest Kid» на этом телефоне.</string>
+    <string name="accessibility_service_description">Нужно, чтобы «Nest Kid» мог следить за ограничениями родителя и защищать себя от постороннего вмешательства.</string>
 </resources>

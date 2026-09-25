@@ -72,6 +72,22 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** Device Admin went inactive without the parent's RELEASE_PROTECTION command — likely the child. */
+    fun onProtectionTamperedLocally() {
+        val familyId = _uiState.value.familyId ?: return
+        viewModelScope.launch {
+            runCatching {
+                eventRepository.logEvent(
+                    familyId,
+                    EventLogEntry(
+                        type = EventType.PROTECTION_TAMPERED,
+                        message = "Защита была отключена на телефоне ребёнка (Device Admin выключен вручную)"
+                    )
+                )
+            }
+        }
+    }
+
     fun sendSos() {
         val familyId = _uiState.value.familyId ?: return
         viewModelScope.launch {
@@ -82,6 +98,13 @@ class HomeViewModel @Inject constructor(
                 )
             }
             _uiState.update { it.copy(sosSent = true) }
+            // Otherwise the button is stuck reading "sent" forever and can't be pressed again for a real emergency.
+            delay(SOS_SENT_DISPLAY_MS)
+            _uiState.update { it.copy(sosSent = false) }
         }
+    }
+
+    private companion object {
+        const val SOS_SENT_DISPLAY_MS = 15_000L
     }
 }

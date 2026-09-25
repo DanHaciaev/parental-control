@@ -10,6 +10,9 @@ data class RuleCacheEntity(
     val appLabel: String,
     val mode: String,
     val dailyLimitMinutes: Int?,
+    /** 7 comma-joined minute values (Mon..Sun); null when the rule has no per-weekday override —
+     *  no @TypeConverter, matching this codebase's flat CSV style (see ScheduleCacheEntity). */
+    val weeklyLimitMinutesCsv: String?,
     val bonusMinutesToday: Int,
     val bonusDateKey: String?
 )

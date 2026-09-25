@@ -19,26 +19,23 @@ service cloud.firestore {
         get(/databases/$(database)/documents/families/$(familyId)).data.childUid == request.auth.uid;
     }
 
+    function isDevice(familyId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)/devices/$(request.auth.uid));
+    }
+
     function isFamilyMember(familyId) {
-      return isParent(familyId) || isChild(familyId);
+      return isParent(familyId) || isChild(familyId) || isDevice(familyId);
     }
 
     match /families/{familyId} {
-      // Reads resource.data directly instead of isFamilyMember()'s self-referential get() —
-      // that pattern silently fails for `list`/query requests (e.g. "find my family by
-      // parentUid" after switching phones), which only ever worked for get-by-id reads.
       allow read: if isSignedIn() &&
         (resource.data.parentUid == request.auth.uid || resource.data.childUid == request.auth.uid);
-      // Parent creates/owns the family doc; the only write a child may make to it
-      // is claiming childUid, which happens through the guarded pairingCodes transaction below,
-      // and acknowledging a pendingCommand.
       allow create: if isSignedIn() && request.resource.data.parentUid == request.auth.uid &&
         (!('childUid' in request.resource.data) || request.resource.data.childUid == null);
       allow update: if isParent(familyId) ||
         (isChild(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingCommand'])) ||
-        // One-time claim during pairing: an unlinked family (childUid still null) may be
-        // claimed by any signed-in (anonymous) user for themselves, and nothing else.
         (isSignedIn() && resource.data.childUid == null &&
           request.resource.data.childUid == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childUid']));
@@ -46,12 +43,18 @@ service cloud.firestore {
 
       match /rules/{packageName} {
         allow read: if isFamilyMember(familyId);
-        allow write: if isParent(familyId) &&
+        allow create, update: if isParent(familyId) &&
           request.resource.data.mode in ['BLOCKED', 'TIME_LIMIT'] &&
           (request.resource.data.dailyLimitMinutes == null || request.resource.data.dailyLimitMinutes is int);
+        allow delete: if isParent(familyId);
       }
 
       match /usageDaily/{entryId} {
+        allow read: if isFamilyMember(familyId);
+        allow write: if isChild(familyId);
+      }
+
+      match /usageHourly/{entryId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
       }
@@ -71,15 +74,26 @@ service cloud.firestore {
         allow write: if isParent(familyId);
       }
 
-      match /installedApps/{packageName} {
+      match /schedules/{scheduleId} {
+        allow read: if isFamilyMember(familyId);
+        allow write: if isParent(familyId);
+      }
+
+      match /history/{entryId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+      }
+
+      match /installedApps/{packageName} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update: if isChild(familyId);
+        allow update: if isParent(familyId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approvalStatus']);
       }
 
       match /events/{eventId} {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId);
-        // Only the "read" flag may be toggled, and only by the parent.
         allow update: if isParent(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         allow delete: if false;
@@ -103,11 +117,72 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']));
         allow delete: if isParent(familyId);
       }
+
+      match /assignedSkills/{skillId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update: if isParent(familyId);
+        allow delete: if isParent(familyId);
+      }
+
+      match /skillProgress/{entryId} {
+        allow read: if isFamilyMember(familyId);
+        allow create, update: if isChild(familyId) &&
+          request.resource.data.approved == false &&
+          (resource == null || resource.data.approved == false);
+        allow update: if isParent(familyId);
+        allow delete: if false;
+      }
+
+      match /listenSession/current {
+        allow read: if isFamilyMember(familyId);
+
+        // Разрешаем родителю создавать сессию сразу со статусом 'ACTIVE' или 'PENDING_CONSENT'
+        allow create: if isParent(familyId) && 
+          request.resource.data.status in ['ACTIVE', 'PENDING_CONSENT'];
+
+        // Обновление состояния сессий
+        allow update: if
+          // Родитель может завершить активную сессию или повторно запросить подключение
+          (isParent(familyId) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt']) &&
+            request.resource.data.status == 'ENDED') ||
+          (isParent(familyId) && resource.data.status in ['ENDED', 'DECLINED'] &&
+            request.resource.data.status in ['ACTIVE', 'PENDING_CONSENT']) ||
+          
+          // Ребёнок передаёт answerSdp или завершает поток без привязки к PENDING_CONSENT
+          (isChild(familyId) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answerSdp', 'respondedAt', 'endedAt']) &&
+            request.resource.data.status in ['ACTIVE', 'DECLINED', 'ENDED']);
+
+        allow delete: if false;
+
+        match /callerCandidates/{candidateId} {
+          allow read: if isFamilyMember(familyId);
+          allow create: if isParent(familyId);
+          allow update, delete: if false;
+        }
+
+        match /calleeCandidates/{candidateId} {
+          allow read: if isFamilyMember(familyId);
+          allow create: if isChild(familyId);
+          allow update, delete: if false;
+        }
+      }
+
+      match /devices/{deviceId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isSignedIn() && request.auth.uid == deviceId;
+        allow update: if
+          (isParent(familyId) &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['label', 'dailyLimitMinutes', 'pendingCommand'])) ||
+          (isSignedIn() && request.auth.uid == deviceId &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['todayDateKey', 'todayMinutesUsed', 'lastSeenAt', 'pendingCommand']));
+        allow delete: if isParent(familyId);
+      }
     }
 
-    // Top-level, deliberately NOT nested under /families so an unpaired child device
-    // can resolve a short-lived pairing code without already knowing a familyId.
-    // `list` is never allowed — only exact-id `get`/transaction reads — to prevent enumeration.
     match /pairingCodes/{code} {
       allow get: if isSignedIn();
       allow list: if false;

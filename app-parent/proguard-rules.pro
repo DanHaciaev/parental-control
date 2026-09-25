@@ -4,3 +4,6 @@
   <init>();
 }
 -keep class com.teo.core.model.** { *; }
+
+# WebRTC (listen-session audio) makes heavy use of JNI — keep the whole package intact.
+-keep class org.webrtc.** { *; }

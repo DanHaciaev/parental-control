@@ -56,6 +56,6 @@ class ChildTasksViewModel @Inject constructor(
 
     fun markDone(task: Task) {
         val familyId = _uiState.value.familyId ?: return
-        viewModelScope.launch { taskRepository.markDoneByChild(familyId, task.id) }
+        viewModelScope.launch { runCatching { taskRepository.markDoneByChild(familyId, task.id) } }
     }
 }

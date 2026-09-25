@@ -19,5 +19,9 @@ data class DeviceStatus(
     val usageAccessEnabled: Boolean = false,
     val overlayEnabled: Boolean = false,
     val deviceAdminActive: Boolean = false,
-    val batteryOptimizationExempt: Boolean = false
+    val batteryOptimizationExempt: Boolean = false,
+    val notificationPolicyAccess: Boolean = false,
+    val locationServicesEnabled: Boolean = true,
+    val currentForegroundApp: String? = null,
+    val currentForegroundAppLabel: String? = null
 )
