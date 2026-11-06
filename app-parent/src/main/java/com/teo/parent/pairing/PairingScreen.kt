@@ -8,16 +8,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -29,9 +37,18 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun PairingScreen(
     onPaired: () -> Unit,
+    /** Pairing a further child while others are already set up — offers a way back instead of
+     *  the second-parent option, which only makes sense for a brand-new account. */
+    isAdditionalChild: Boolean = false,
+    onCancel: () -> Unit = {},
+    onJoinAsParent: (String) -> Unit = {},
+    joinLoading: Boolean = false,
+    joinError: String? = null,
+    onClearJoinError: () -> Unit = {},
     viewModel: PairingViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showJoinDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.childPaired) {
         if (uiState.childPaired) onPaired()
@@ -45,7 +62,7 @@ fun PairingScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Привяжите телефон ребёнка",
+            text = if (isAdditionalChild) "Привяжите телефон ещё одного ребёнка" else "Привяжите телефон ребёнка",
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
@@ -99,5 +116,66 @@ fun PairingScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
         )
+
+        Spacer(Modifier.height(24.dp))
+        if (isAdditionalChild) {
+            TextButton(onClick = onCancel) { Text("Отмена") }
+        } else {
+            TextButton(onClick = { onClearJoinError(); showJoinDialog = true }) {
+                Text("Я второй родитель — ввести код приглашения")
+            }
+        }
     }
+
+    if (showJoinDialog) {
+        JoinAsParentDialog(
+            loading = joinLoading,
+            error = joinError,
+            onJoin = onJoinAsParent,
+            onDismiss = { showJoinDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun JoinAsParentDialog(
+    loading: Boolean,
+    error: String?,
+    onJoin: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Присоединиться к семье") },
+        text = {
+            Column {
+                Text(
+                    "Попросите другого родителя открыть «Ещё» → «Пригласить второго родителя» и введите показанный код.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { value -> code = value.filter { it.isDigit() }.take(6) },
+                    label = { Text("Код из 6 цифр") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                error?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onJoin(code) }, enabled = code.length == 6 && !loading) {
+                if (loading) CircularProgressIndicator() else Text("Присоединиться")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
 }

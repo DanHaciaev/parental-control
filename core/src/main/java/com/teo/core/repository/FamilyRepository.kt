@@ -1,10 +1,12 @@
 package com.teo.core.repository
 
+import android.content.Context
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.teo.core.FirestorePaths
 import com.teo.core.model.Family
 import com.teo.core.util.PinHasher
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -14,15 +16,23 @@ import javax.inject.Singleton
 
 @Singleton
 class FamilyRepository @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    @ApplicationContext private val context: Context
 ) {
     private fun familiesRef() = firestore.collection(FirestorePaths.FAMILIES)
+
+    /** Which child the parent app currently shows, per parent account. Device-local on purpose —
+     *  two parents looking at different children at the same time is normal. */
+    private val selectionPrefs by lazy {
+        context.getSharedPreferences("family_selection", Context.MODE_PRIVATE)
+    }
 
     suspend fun createFamily(parentUid: String, parentEmail: String, timezone: String): String {
         val doc = familiesRef().document()
         val family = Family(
             id = doc.id,
             parentUid = parentUid,
+            parentUids = listOf(parentUid),
             parentEmail = parentEmail,
             timezone = timezone
         )
@@ -30,10 +40,66 @@ class FamilyRepository @Inject constructor(
         return doc.id
     }
 
-    /** Lets a parent recover their family after reinstalling/switching phones, keyed by their uid. */
+    /**
+     * Every child profile this parent manages, oldest first. Two queries because documents created
+     * before co-parents existed only have [Family.parentUid]; those get [Family.parentUids] backfilled
+     * here, since joining as a second parent (see PairingRepository.joinAsParent) appends to that list
+     * and the security rules require it to already exist.
+     */
+    suspend fun familiesForParent(parentUid: String): List<Family> {
+        val byList = familiesRef().whereArrayContains("parentUids", parentUid).get().await()
+            .toObjects(Family::class.java)
+        val legacy = familiesRef().whereEqualTo("parentUid", parentUid).get().await()
+            .toObjects(Family::class.java)
+            .filter { it.parentUids.isEmpty() }
+        legacy.forEach { family ->
+            runCatching { familiesRef().document(family.id).update("parentUids", listOf(family.parentUid)).await() }
+        }
+        return (byList + legacy).distinctBy { it.id }.sortedBy { it.createdAt }
+    }
+
+    /**
+     * The child profile the parent app is currently showing — every parent-side screen resolves its
+     * familyId through this, so switching children ([selectFamily]) switches the whole app. Falls back
+     * to the oldest profile when nothing was selected yet or the selection no longer exists.
+     */
     suspend fun findFamilyIdForParent(parentUid: String): String? {
-        val snapshot = familiesRef().whereEqualTo("parentUid", parentUid).limit(1).get().await()
-        return snapshot.documents.firstOrNull()?.id
+        val ids = familiesForParent(parentUid).map { it.id }
+        val selected = selectionPrefs.getString(parentUid, null)
+        return selected?.takeIf { it in ids } ?: ids.firstOrNull()
+    }
+
+    fun selectFamily(parentUid: String, familyId: String) {
+        selectionPrefs.edit().putString(parentUid, familyId).apply()
+    }
+
+    /**
+     * New, still-unpaired profile for another child. Shares the parents, SOS phone, protection PIN
+     * and timezone of [templateFamilyId] — those belong to the parents, not to one child — so the
+     * second parent sees the new child too and the parent app's PIN lock keeps working unchanged.
+     */
+    suspend fun createChildProfile(parentUid: String, templateFamilyId: String): String {
+        val template = getFamily(templateFamilyId) ?: error("template family missing")
+        val doc = familiesRef().document()
+        doc.set(
+            Family(
+                id = doc.id,
+                parentUid = parentUid,
+                parentUids = (template.allParentUids() + parentUid).distinct(),
+                parentEmail = template.parentEmail,
+                parentPhone = template.parentPhone,
+                timezone = template.timezone,
+                protectionPinHash = template.protectionPinHash,
+                protectionPinSalt = template.protectionPinSalt
+            )
+        ).await()
+        return doc.id
+    }
+
+    /** Only for a profile no child ever claimed — e.g. "add child" cancelled, or the empty profile a
+     *  second parent got at sign-up before joining the real family. The rules refuse it otherwise. */
+    suspend fun deleteUnpairedProfile(familyId: String) {
+        familiesRef().document(familyId).delete().await()
     }
 
     suspend fun getFamily(familyId: String): Family? =
@@ -50,15 +116,19 @@ class FamilyRepository @Inject constructor(
         awaitClose { registration.remove() }
     }
 
-    suspend fun setProtectionPin(familyId: String, pin: String) {
+    /** Written to every child profile the parent manages — one PIN guards the parent app and all
+     *  children's phones, see [createChildProfile]. */
+    suspend fun setProtectionPin(parentUid: String, pin: String) {
         val hashed = PinHasher.hash(pin)
-        familiesRef().document(familyId)
-            .update(
-                mapOf(
-                    "protectionPinHash" to hashed.hash,
-                    "protectionPinSalt" to hashed.salt
-                )
-            ).await()
+        familiesForParent(parentUid).forEach { family ->
+            familiesRef().document(family.id)
+                .update(
+                    mapOf(
+                        "protectionPinHash" to hashed.hash,
+                        "protectionPinSalt" to hashed.salt
+                    )
+                ).await()
+        }
     }
 
     suspend fun verifyProtectionPin(familyId: String, pin: String): Boolean {
@@ -85,8 +155,11 @@ class FamilyRepository @Inject constructor(
         familiesRef().document(familyId).update("childName", name).await()
     }
 
-    suspend fun setParentPhone(familyId: String, phone: String) {
-        familiesRef().document(familyId).update("parentPhone", phone).await()
+    /** Same number on every child profile — see [setProtectionPin]. */
+    suspend fun setParentPhone(parentUid: String, phone: String) {
+        familiesForParent(parentUid).forEach { family ->
+            familiesRef().document(family.id).update("parentPhone", phone).await()
+        }
     }
 
     suspend fun setBedtime(familyId: String, startMinutes: Int?, endMinutes: Int?) {

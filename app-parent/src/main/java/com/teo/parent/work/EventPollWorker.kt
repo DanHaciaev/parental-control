@@ -29,22 +29,26 @@ class EventPollWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val uid = auth.currentUser?.uid ?: return Result.success()
-        val familyId = familyRepository.findFamilyIdForParent(uid) ?: return Result.success()
 
         return try {
-            val unread = eventRepository.getUnreadEvents(familyId)
-            val sosCount = unread.count { it.type == EventType.SOS }
-            if (sosCount > 0) {
-                SosNotifications.show(applicationContext)
+            val families = familyRepository.familiesForParent(uid)
+            families.forEach { family ->
+                val childLabel = if (families.size > 1) family.childName?.takeIf { it.isNotBlank() } else null
+                // Per-parent notifiedTo rather than the shared read flag — see EventLogEntry.notifiedTo.
+                val pending = eventRepository.getEventsNotNotified(family.id, uid)
+                if (pending.any { it.type == EventType.SOS }) {
+                    SosNotifications.show(applicationContext)
+                }
+                val other = pending.filterNot { it.type == EventType.SOS }
+                if (other.isNotEmpty()) {
+                    val deepLinkInstalls = other.any { it.type == EventType.INSTALL_ATTEMPT || it.type == EventType.NEW_INSTALL }
+                    val messages = other.map { e -> childLabel?.let { "$it: ${e.message}" } ?: e.message }
+                    EventNotifications.show(applicationContext, messages, deepLinkInstalls)
+                }
+                // Without this, every ~15-minute run would re-notify (siren included) for the same
+                // events forever.
+                pending.forEach { event -> runCatching { eventRepository.markEventNotified(family.id, event.id, uid) } }
             }
-            val other = unread.filterNot { it.type == EventType.SOS }
-            if (other.isNotEmpty()) {
-                val deepLinkInstalls = other.any { it.type == EventType.INSTALL_ATTEMPT || it.type == EventType.NEW_INSTALL }
-                EventNotifications.show(applicationContext, other.map { it.message }, deepLinkInstalls)
-            }
-            // Without this, every ~15-minute run would re-notify (siren included) for the same
-            // still-unread events forever, since nothing else here ever marks them as read.
-            unread.forEach { event -> runCatching { eventRepository.markEventRead(familyId, event.id) } }
             Result.success()
         } catch (e: Exception) {
             Result.retry()

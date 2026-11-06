@@ -9,6 +9,8 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.teo.core.repository.FamilyRepository
+import com.teo.core.repository.PairingException
+import com.teo.core.repository.PairingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,20 +22,37 @@ import kotlinx.coroutines.tasks.await
 import java.util.TimeZone
 import javax.inject.Inject
 
+data class ChildSummary(
+    val familyId: String,
+    val name: String,
+    val linked: Boolean
+)
+
 data class AuthUiState(
     val loading: Boolean = true,
     val errorMessage: String? = null,
     val isSignedIn: Boolean = false,
+    /** The currently selected child's profile — see FamilyRepository.findFamilyIdForParent. */
     val familyId: String? = null,
     val parentEmail: String = "",
     val childLinked: Boolean = false,
-    val pinSet: Boolean = false
-)
+    val pinSet: Boolean = false,
+    val children: List<ChildSummary> = emptyList(),
+    val parentInviteCode: String? = null,
+    val parentInviteError: String? = null,
+    val joinLoading: Boolean = false,
+    val joinError: String? = null
+) {
+    /** The selected profile is a not-yet-paired extra child, so the pairing screen can back out of it. */
+    val canCancelAddChild: Boolean
+        get() = !childLinked && children.any { it.linked && it.familyId != familyId }
+}
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val auth: FirebaseAuth,
-    private val familyRepository: FamilyRepository
+    private val familyRepository: FamilyRepository,
+    private val pairingRepository: PairingRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -91,6 +110,91 @@ class AuthViewModel @Inject constructor(
         loadFamilyState(user.uid, user.email.orEmpty())
     }
 
+    fun selectChild(familyId: String) {
+        val uid = auth.currentUser?.uid ?: return
+        if (familyId == _uiState.value.familyId) return
+        familyRepository.selectFamily(uid, familyId)
+        refreshFamilyState()
+    }
+
+    /** Creates an empty profile for another child and selects it — the nav host then shows the
+     *  pairing code for it, exactly like first-time setup. */
+    fun addChild() {
+        val user = auth.currentUser ?: return
+        val current = _uiState.value.familyId ?: return
+        viewModelScope.launch {
+            try {
+                val newId = familyRepository.createChildProfile(user.uid, current)
+                familyRepository.selectFamily(user.uid, newId)
+                loadFamilyState(user.uid, user.email.orEmpty())
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = "Не удалось добавить ребёнка, попробуйте ещё раз") }
+            }
+        }
+    }
+
+    fun cancelAddChild() {
+        val user = auth.currentUser ?: return
+        val state = _uiState.value
+        val unpaired = state.familyId ?: return
+        val fallback = state.children.firstOrNull { it.linked && it.familyId != unpaired } ?: return
+        viewModelScope.launch {
+            runCatching { familyRepository.deleteUnpairedProfile(unpaired) }
+            familyRepository.selectFamily(user.uid, fallback.familyId)
+            loadFamilyState(user.uid, user.email.orEmpty())
+        }
+    }
+
+    /** Code for a second parent covering every child this parent manages right now — children
+     *  added later are shared automatically, since createChildProfile copies the parent list. */
+    fun createParentInvite() {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(parentInviteCode = null, parentInviteError = null) }
+            try {
+                val familyIds = familyRepository.familiesForParent(uid).map { it.id }
+                val code = pairingRepository.generateParentInvite(uid, familyIds)
+                _uiState.update { it.copy(parentInviteCode = code) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(parentInviteError = "Не удалось создать код, попробуйте ещё раз") }
+            }
+        }
+    }
+
+    fun dismissParentInvite() {
+        _uiState.update { it.copy(parentInviteCode = null, parentInviteError = null) }
+    }
+
+    /**
+     * Joins another parent's family by their invite code. The empty profile this account got
+     * automatically at sign-up is removed afterwards, so it doesn't linger as a phantom child
+     * waiting for pairing.
+     */
+    fun joinAsParent(code: String) {
+        val user = auth.currentUser ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(joinLoading = true, joinError = null) }
+            try {
+                val ownBefore = familyRepository.familiesForParent(user.uid)
+                val joinedIds = pairingRepository.joinAsParent(code.filter { it.isDigit() }, user.uid)
+                ownBefore
+                    .filter { it.id !in joinedIds && it.childUid.isNullOrEmpty() && it.allParentUids() == listOf(user.uid) }
+                    .forEach { runCatching { familyRepository.deleteUnpairedProfile(it.id) } }
+                familyRepository.selectFamily(user.uid, joinedIds.first())
+                _uiState.update { it.copy(joinLoading = false) }
+                loadFamilyState(user.uid, user.email.orEmpty())
+            } catch (e: PairingException) {
+                _uiState.update { it.copy(joinLoading = false, joinError = e.message) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(joinLoading = false, joinError = "Не удалось присоединиться, проверьте интернет") }
+            }
+        }
+    }
+
+    fun clearJoinError() {
+        _uiState.update { it.copy(joinError = null) }
+    }
+
     fun signOut() {
         auth.signOut()
         _uiState.value = AuthUiState(loading = false)
@@ -113,7 +217,8 @@ class AuthViewModel @Inject constructor(
                 try {
                     val familyId = familyRepository.findFamilyIdForParent(uid)
                         ?: familyRepository.createFamily(uid, email, TimeZone.getDefault().id)
-                    val family = familyRepository.getFamily(familyId)
+                    val families = familyRepository.familiesForParent(uid)
+                    val family = families.firstOrNull { it.id == familyId } ?: familyRepository.getFamily(familyId)
                     _uiState.update {
                         it.copy(
                             loading = false,
@@ -121,7 +226,16 @@ class AuthViewModel @Inject constructor(
                             familyId = familyId,
                             parentEmail = email,
                             childLinked = !family?.childUid.isNullOrEmpty(),
-                            pinSet = !family?.protectionPinHash.isNullOrEmpty()
+                            pinSet = !family?.protectionPinHash.isNullOrEmpty(),
+                            children = families.mapIndexed { index, f ->
+                                ChildSummary(
+                                    familyId = f.id,
+                                    name = f.childName?.takeIf { n -> n.isNotBlank() }
+                                        ?: f.childDeviceName?.takeIf { n -> n.isNotBlank() }
+                                        ?: "Ребёнок ${index + 1}",
+                                    linked = !f.childUid.isNullOrEmpty()
+                                )
+                            }
                         )
                     }
                     return@launch

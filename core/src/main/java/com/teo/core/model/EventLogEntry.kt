@@ -25,8 +25,28 @@ data class EventLogEntry(
     val packageName: String? = null,
     val message: String = "",
     @ServerTimestamp val createdAt: Date? = null,
-    val read: Boolean = false
-)
+    val read: Boolean = false,
+    /** Parents whose phones have already shown a notification for this event — tracked per parent
+     *  rather than via [read], since with two parents whichever app marked it read first would
+     *  otherwise silently swallow the other parent's notification. */
+    val notifiedTo: List<String> = emptyList()
+) {
+    /**
+     * Whether [parentUid]'s phone still has to notify about this event. Events already read before
+     * [notifiedTo] existed count as handled, and anything older than a day is skipped, so updating
+     * the app or joining as a second parent doesn't replay a backlog of old alerts (SOS siren included).
+     */
+    fun needsNotificationFor(parentUid: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        if (parentUid in notifiedTo) return false
+        if (read && notifiedTo.isEmpty()) return false
+        val created = createdAt?.time ?: return true // still pending its server timestamp — brand new
+        return nowMs - created < NOTIFY_MAX_AGE_MS
+    }
+
+    private companion object {
+        const val NOTIFY_MAX_AGE_MS = 24 * 60 * 60 * 1000L
+    }
+}
 
 enum class RequestStatus { PENDING, APPROVED, DENIED }
 

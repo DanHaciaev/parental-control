@@ -9,9 +9,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // A family document is one child's profile; parentUid is its creator, parentUids every parent
+    // managing it (older documents may only have parentUid).
+    function parentUidsOf(family) {
+      return family.get('parentUids', [family.parentUid]);
+    }
+
     function isParent(familyId) {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/families/$(familyId)).data.parentUid == request.auth.uid;
+        request.auth.uid in parentUidsOf(get(/databases/$(database)/documents/families/$(familyId)).data);
+    }
+
+    // A second parent adding themselves through a parent invite: only their own uid appended to
+    // parentUids, and only with a live invite that names this family and was created by one of its
+    // existing parents.
+    function isJoiningViaInvite(familyId) {
+      let invite = get(/databases/$(database)/documents/parentInvites/$(request.resource.data.joinedViaInvite)).data;
+      return isSignedIn() &&
+        'parentUids' in resource.data &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['parentUids', 'joinedViaInvite']) &&
+        request.resource.data.parentUids == resource.data.parentUids.concat([request.auth.uid]) &&
+        invite.used == false &&
+        invite.expiresAt > request.time &&
+        familyId in invite.familyIds &&
+        invite.createdBy in resource.data.parentUids;
     }
 
     function isChild(familyId) {
@@ -29,17 +50,24 @@ service cloud.firestore {
     }
 
     match /families/{familyId} {
+      // parentUids last: it's missing on older documents, and the array-contains query in
+      // FamilyRepository.familiesForParent needs this exact form to be provable.
       allow read: if isSignedIn() &&
-        (resource.data.parentUid == request.auth.uid || resource.data.childUid == request.auth.uid);
+        (resource.data.parentUid == request.auth.uid || resource.data.childUid == request.auth.uid ||
+          request.auth.uid in resource.data.parentUids);
       allow create: if isSignedIn() && request.resource.data.parentUid == request.auth.uid &&
+        (!('parentUids' in request.resource.data) || request.auth.uid in request.resource.data.parentUids) &&
         (!('childUid' in request.resource.data) || request.resource.data.childUid == null);
       allow update: if isParent(familyId) ||
         (isChild(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingCommand'])) ||
         (isSignedIn() && resource.data.childUid == null &&
           request.resource.data.childUid == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childUid']));
-      allow delete: if false;
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childUid'])) ||
+        isJoiningViaInvite(familyId);
+      // Only a profile no child ever claimed (cancelled "add child", or a co-parent's own empty
+      // sign-up profile) — a paired child's data is never deletable from a client.
+      allow delete: if isParent(familyId) && resource.data.get('childUid', null) == null;
 
       match /rules/{packageName} {
         allow read: if isFamilyMember(familyId);
@@ -95,7 +123,7 @@ service cloud.firestore {
         allow read: if isFamilyMember(familyId);
         allow create: if isFamilyMember(familyId);
         allow update: if isParent(familyId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'notifiedTo']);
         allow delete: if false;
       }
 
@@ -181,6 +209,22 @@ service cloud.firestore {
               .hasOnly(['todayDateKey', 'todayMinutesUsed', 'lastSeenAt', 'pendingCommand']));
         allow delete: if isParent(familyId);
       }
+    }
+
+    match /parentInvites/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      // Which families it covers is checked per family at join time (isJoiningViaInvite), since
+      // rules can't loop over familyIds here.
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.used == false &&
+        request.resource.data.familyIds is list &&
+        request.resource.data.familyIds.size() <= 10;
+      allow update: if isSignedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used']) &&
+        resource.data.used == false && request.resource.data.used == true;
+      allow delete: if false;
     }
 
     match /pairingCodes/{code} {

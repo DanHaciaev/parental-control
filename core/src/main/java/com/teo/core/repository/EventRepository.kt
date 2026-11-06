@@ -1,5 +1,6 @@
 package com.teo.core.repository
 
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.teo.core.FirestorePaths
@@ -50,6 +51,17 @@ class EventRepository @Inject constructor(
         eventsRef(familyId).whereEqualTo("read", false).get().await().size()
 
     /** Same poll, but with enough detail to special-case SOS with its own high-priority notification. */
+    /** Recent events this parent's phone hasn't notified about yet — see [EventLogEntry.notifiedTo]. */
+    suspend fun getEventsNotNotified(familyId: String, parentUid: String, limit: Long = 50): List<EventLogEntry> =
+        eventsRef(familyId).orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(limit).get().await().toObjects(EventLogEntry::class.java)
+            .filter { it.needsNotificationFor(parentUid) }
+
+    suspend fun markEventNotified(familyId: String, eventId: String, parentUid: String) {
+        eventsRef(familyId).document(eventId)
+            .update("notifiedTo", FieldValue.arrayUnion(parentUid)).await()
+    }
+
     suspend fun getUnreadEvents(familyId: String): List<EventLogEntry> =
         eventsRef(familyId).whereEqualTo("read", false).get().await().toObjects(EventLogEntry::class.java)
 

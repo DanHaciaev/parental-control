@@ -34,6 +34,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,6 +76,7 @@ import com.teo.core.model.Device
 import com.teo.core.model.DeviceStatus
 import com.teo.core.model.RuleMode
 import com.teo.parent.R
+import com.teo.parent.auth.ChildSummary
 import com.teo.parent.devices.DeviceCard
 import com.teo.parent.devices.DeviceDetailSheet
 import com.teo.parent.devices.DevicePairingScreen
@@ -117,6 +121,14 @@ private fun NavLabel(text: String) {
 fun DashboardScreen(
     onSignOut: () -> Unit,
     openInstallApprovals: MutableState<Boolean> = mutableStateOf(false),
+    children: List<ChildSummary> = emptyList(),
+    selectedFamilyId: String? = null,
+    onSelectChild: (String) -> Unit = {},
+    onAddChild: () -> Unit = {},
+    parentInviteCode: String? = null,
+    parentInviteError: String? = null,
+    onCreateParentInvite: () -> Unit = {},
+    onDismissParentInvite: () -> Unit = {},
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -131,6 +143,8 @@ fun DashboardScreen(
     // Hoisted out of WeeklyLimitsScreen so the top-bar back arrow below can pop one level (day ->
     // day list) instead of always closing the whole section — see WeeklyLimitsScreen's kdoc.
     var weeklyLimitsSelectedDay by remember { mutableStateOf<Int?>(null) }
+    var childMenuOpen by remember { mutableStateOf(false) }
+    var showParentInvite by remember { mutableStateOf(false) }
 
     BackHandler(enabled = activeOverlay == OverlayScreen.WEEKLY_LIMITS && weeklyLimitsSelectedDay != null) {
         weeklyLimitsSelectedDay = null
@@ -172,7 +186,49 @@ fun DashboardScreen(
                         selectedTab == 0 -> uiState.childName ?: "Главная"
                         else -> TAB_TITLES[selectedTab]
                     }
-                    Text(text = title, style = MaterialTheme.typography.titleMedium)
+                    // Every tab and section shows the selected child, so the switcher sits in the
+                    // top bar whenever no section is open, not only on the home tab.
+                    val switcherVisible = expandedCategory == null && activeOverlay == null
+                    if (switcherVisible) {
+                        Box {
+                            Row(
+                                modifier = Modifier.clickable { childMenuOpen = true },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                                Text(text = "  ▾", style = MaterialTheme.typography.titleMedium)
+                            }
+                            DropdownMenu(expanded = childMenuOpen, onDismissRequest = { childMenuOpen = false }) {
+                                children.forEach { child ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = child.name,
+                                                fontWeight = if (child.familyId == selectedFamilyId) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        trailingIcon = if (child.familyId == selectedFamilyId) {
+                                            { Text("✓") }
+                                        } else null,
+                                        onClick = {
+                                            childMenuOpen = false
+                                            onSelectChild(child.familyId)
+                                        }
+                                    )
+                                }
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("+ Добавить ребёнка") },
+                                    onClick = {
+                                        childMenuOpen = false
+                                        onAddChild()
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        Text(text = title, style = MaterialTheme.typography.titleMedium)
+                    }
                 },
                 navigationIcon = {
                     if (expandedCategory != null) {
@@ -279,6 +335,11 @@ fun DashboardScreen(
                     },
                     onSetRingerNormal = viewModel::setRingerNormal,
                     onEnableLocation = viewModel::enableLocation,
+                    onAddChild = onAddChild,
+                    onInviteParent = {
+                        onCreateParentInvite()
+                        showParentInvite = true
+                    },
                     onSignOut = onSignOut
                 )
                 else -> when {
@@ -301,6 +362,35 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    if (showParentInvite) {
+        AlertDialog(
+            onDismissRequest = { showParentInvite = false; onDismissParentInvite() },
+            title = { Text("Пригласить второго родителя") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Второй родитель устанавливает «Nest Parent», регистрируется и на экране привязки нажимает «Я второй родитель». Код действует 15 минут.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    when {
+                        parentInviteError != null -> Text(parentInviteError, color = MaterialTheme.colorScheme.error)
+                        parentInviteCode == null -> CircularProgressIndicator()
+                        else -> Text(
+                            text = parentInviteCode.take(3) + " " + parentInviteCode.drop(3),
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 4.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showParentInvite = false; onDismissParentInvite() }) { Text("Готово") }
+            }
+        )
     }
 
     if (showRingConfirm) {
@@ -753,9 +843,27 @@ private fun MoreTabContent(
     onStopRinging: () -> Unit,
     onSetRingerNormal: () -> Unit,
     onEnableLocation: () -> Unit,
+    onAddChild: () -> Unit,
+    onInviteParent: () -> Unit,
     onSignOut: () -> Unit
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            SettingsRow(
+                iconRes = R.drawable.ic_emoji_phone_device,
+                title = "Добавить ребёнка",
+                subtitle = "Привязать телефон ещё одного ребёнка",
+                onClick = onAddChild
+            )
+        }
+        item {
+            SettingsRow(
+                iconRes = R.drawable.ic_emoji_family,
+                title = "Пригласить второго родителя",
+                subtitle = "Код, чтобы второй родитель видел всех детей в своём приложении",
+                onClick = onInviteParent
+            )
+        }
         item {
             SettingsRow(
                 iconRes = R.drawable.ic_emoji_family,

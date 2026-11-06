@@ -35,6 +35,70 @@ class PairingRepository @Inject constructor(
     }
 
     /**
+     * Invite for a second parent: lets whoever enters [code] manage every child in [familyIds].
+     * Same 6-digit, short-lived, get-by-exact-id-only shape as the child pairing code, in its own
+     * collection so neither kind of code can be redeemed as the other.
+     */
+    suspend fun generateParentInvite(parentUid: String, familyIds: List<String>, validForMinutes: Long = 15): String {
+        val code = Random.nextInt(100_000, 999_999).toString()
+        val expiresAt = Date(System.currentTimeMillis() + validForMinutes * 60_000)
+        firestore.collection(FirestorePaths.PARENT_INVITES).document(code).set(
+            mapOf(
+                "createdBy" to parentUid,
+                "familyIds" to familyIds,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "expiresAt" to expiresAt,
+                "used" to false
+            )
+        ).await()
+        return code
+    }
+
+    /**
+     * Adds [parentUid] to every child profile the invite covers and burns the invite, in one batch.
+     * Like [claimCode], the joining parent can't read those profiles yet — the security rules
+     * authorize the self-add by checking the invite referenced in `joinedViaInvite`, and arrayUnion
+     * appends without needing to know the current list.
+     */
+    suspend fun joinAsParent(code: String, parentUid: String): List<String> {
+        val inviteRef = firestore.collection(FirestorePaths.PARENT_INVITES).document(code)
+        try {
+            val invite = inviteRef.get().await()
+            if (!invite.exists()) throw PairingException("Код не найден")
+            if (invite.getBoolean("used") == true) throw PairingException("Код уже использован")
+            val expiresAt = invite.getDate("expiresAt")
+            if (expiresAt == null || expiresAt.before(Date())) throw PairingException("Код истёк")
+            @Suppress("UNCHECKED_CAST")
+            val familyIds = (invite.get("familyIds") as? List<String>).orEmpty()
+            if (familyIds.isEmpty()) throw PairingException("Некорректный код")
+
+            val batch = firestore.batch()
+            familyIds.forEach { familyId ->
+                batch.update(
+                    familiesRef().document(familyId),
+                    mapOf(
+                        "parentUids" to FieldValue.arrayUnion(parentUid),
+                        "joinedViaInvite" to code
+                    )
+                )
+            }
+            batch.update(inviteRef, "used", true)
+            batch.commit().await()
+            return familyIds
+        } catch (e: PairingException) {
+            throw e
+        } catch (e: FirebaseFirestoreException) {
+            throw when (e.code) {
+                FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    PairingException("Не удалось присоединиться — попросите новый код")
+                FirebaseFirestoreException.Code.NOT_FOUND ->
+                    PairingException("Семья не найдена")
+                else -> e
+            }
+        }
+    }
+
+    /**
      * Claims a code for the given anonymous child uid; returns the resolved familyId.
      *
      * Deliberately does NOT read the family document first: an unlinked child isn't a family

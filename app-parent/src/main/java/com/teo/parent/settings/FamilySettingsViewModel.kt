@@ -94,7 +94,7 @@ class FamilySettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (childName.isNotBlank()) familyRepository.setChildName(familyId, childName)
-                if (phone.isNotBlank()) familyRepository.setParentPhone(familyId, phone)
+                if (phone.isNotBlank()) auth.currentUser?.uid?.let { familyRepository.setParentPhone(it, phone) }
                 familyRepository.setTotalScreenTimeCap(familyId, if (totalCapEnabled) parsedCap else null)
                 familyRepository.setFullBlockAllowedPackages(familyId, fullBlockAllowedPackages.toList())
                 _uiState.update {

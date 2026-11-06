@@ -1,8 +1,8 @@
 package com.teo.parent.pin
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import com.teo.core.repository.FamilyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +20,9 @@ data class SetPinUiState(
 
 @HiltViewModel
 class SetPinViewModel @Inject constructor(
-    private val familyRepository: FamilyRepository,
-    savedStateHandle: SavedStateHandle
+    private val auth: FirebaseAuth,
+    private val familyRepository: FamilyRepository
 ) : ViewModel() {
-
-    private val familyId: String = checkNotNull(savedStateHandle["familyId"])
 
     private val _uiState = MutableStateFlow(SetPinUiState())
     val uiState: StateFlow<SetPinUiState> = _uiState.asStateFlow()
@@ -33,7 +31,8 @@ class SetPinViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, errorMessage = null) }
             try {
-                familyRepository.setProtectionPin(familyId, pin)
+                val uid = auth.currentUser?.uid ?: error("not signed in")
+                familyRepository.setProtectionPin(uid, pin)
                 _uiState.update { it.copy(loading = false, saved = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(loading = false, errorMessage = "Не удалось сохранить код, попробуйте ещё раз") }

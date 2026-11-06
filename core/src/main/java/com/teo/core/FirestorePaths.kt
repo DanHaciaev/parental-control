@@ -7,6 +7,7 @@ package com.teo.core
 object FirestorePaths {
     const val FAMILIES = "families"
     const val PAIRING_CODES = "pairingCodes"
+    const val PARENT_INVITES = "parentInvites"
 
     const val RULES = "rules"
     const val USAGE_DAILY = "usageDaily"
@@ -42,4 +43,5 @@ object FirestorePaths {
     fun installedAppDoc(familyId: String, packageName: String) =
         "$FAMILIES/$familyId/$INSTALLED_APPS/$packageName"
     fun pairingCodeDoc(code: String) = "$PAIRING_CODES/$code"
+    fun parentInviteDoc(code: String) = "$PARENT_INVITES/$code"
 }

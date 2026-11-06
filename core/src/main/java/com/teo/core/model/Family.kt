@@ -34,9 +34,23 @@ data class PendingCommand(
     val status: CommandStatus = CommandStatus.PENDING
 )
 
+/**
+ * One document per child — a parent with several children has several of these, and every screen
+ * of the parent app works on whichever one is currently selected (see
+ * FamilyRepository.findFamilyIdForParent). Despite the name, "family" here is really "one child's
+ * profile plus the parents who manage it".
+ */
 data class Family(
     @DocumentId val id: String = "",
+    /** The parent who created this profile. Kept for documents written before [parentUids] existed;
+     *  access checks go through [allParentUids]. */
     val parentUid: String = "",
+    /** Every parent allowed to manage this child — the creator plus anyone who joined through a
+     *  parent invite (see PairingRepository.joinAsParent). */
+    val parentUids: List<String> = emptyList(),
+    /** The parent-invite code the most recent co-parent joined with — the security rules check it
+     *  against parentInvites/{code} to authorize that one-time self-add to [parentUids]. */
+    val joinedViaInvite: String? = null,
     val parentEmail: String = "",
     val parentPhone: String? = null,
     val childUid: String? = null,
@@ -61,6 +75,8 @@ data class Family(
     @ServerTimestamp val createdAt: Date? = null,
     val pendingCommand: PendingCommand? = null
 ) {
+    fun allParentUids(): List<String> = (parentUids + parentUid).filter { it.isNotBlank() }.distinct()
+
     fun effectiveTotalCapMinutes(isoDayOfWeek: Int): Int? =
         weeklyTotalCapMinutes?.get(isoDayOfWeek.toString()) ?: totalScreenTimeCapMinutes
 }

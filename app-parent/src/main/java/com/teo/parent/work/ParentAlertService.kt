@@ -40,20 +40,32 @@ class ParentAlertService : Service() {
     @Inject lateinit var eventRepository: EventRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var knownUnreadIds: Set<String> = emptySet()
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, buildOwnNotification())
         serviceScope.launch {
             val uid = auth.currentUser?.uid ?: run { stopSelf(); return@launch }
-            val familyId = familyRepository.findFamilyIdForParent(uid) ?: run { stopSelf(); return@launch }
-            while (true) {
-                try {
-                    eventRepository.observeRecentEvents(familyId).collect { events ->
-                        val unread = events.filter { !it.read }
-                        val newOnes = unread.filter { it.id !in knownUnreadIds }
-                        knownUnreadIds = unread.map { it.id }.toSet()
+            val families = runCatching { familyRepository.familiesForParent(uid) }.getOrDefault(emptyList())
+            if (families.isEmpty()) { stopSelf(); return@launch }
+            // One listener per child — events arrive for every child, not just the one currently
+            // open in the app. Children added later are picked up on the next service start.
+            families.forEach { family ->
+                val childLabel = if (families.size > 1) family.childName?.takeIf { it.isNotBlank() } else null
+                launch { watchFamily(uid, family.id, childLabel) }
+            }
+        }
+    }
+
+    private suspend fun watchFamily(uid: String, familyId: String, childLabel: String?) {
+        val handled = mutableSetOf<String>()
+        while (true) {
+            try {
+                eventRepository.observeRecentEvents(familyId).collect { events ->
+                        // notifiedTo (not read) — with two parents, the other parent's app marking an
+                        // event read must not swallow this parent's notification.
+                        val newOnes = events.filter { it.needsNotificationFor(uid) && it.id !in handled }
+                        handled += newOnes.map { it.id }
                         if (newOnes.isEmpty()) return@collect
 
                         val sos = newOnes.filter { it.type == EventType.SOS }
@@ -65,13 +77,13 @@ class ParentAlertService : Service() {
                             val deepLinkInstalls = other.any {
                                 it.type == EventType.INSTALL_ATTEMPT || it.type == EventType.NEW_INSTALL
                             }
-                            EventNotifications.show(applicationContext, other.map { it.message }, deepLinkInstalls)
+                            val messages = other.map { e -> childLabel?.let { "$it: ${e.message}" } ?: e.message }
+                            EventNotifications.show(applicationContext, messages, deepLinkInstalls)
                         }
-                        newOnes.forEach { event -> runCatching { eventRepository.markEventRead(familyId, event.id) } }
-                    }
-                } catch (e: Exception) {
-                    delay(5_000)
+                        newOnes.forEach { event -> runCatching { eventRepository.markEventNotified(familyId, event.id, uid) } }
                 }
+            } catch (e: Exception) {
+                delay(5_000)
             }
         }
     }

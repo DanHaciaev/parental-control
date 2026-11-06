@@ -15,8 +15,6 @@ import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
-import android.hardware.Sensor
-import android.hardware.SensorManager
 import android.location.LocationManager
 import android.os.BatteryManager
 import android.os.Build
@@ -49,8 +47,6 @@ import com.teo.child.pin.PinChallengeActivity
 import com.teo.child.ring.CallStateWatcher
 import com.teo.child.ring.RingController
 import com.teo.child.ring.RingerModeController
-import com.teo.child.sos.ShakeDetector
-import com.teo.child.sos.SosTrigger
 import com.teo.core.model.CommandType
 import com.teo.core.model.DeviceStatus
 import com.teo.core.model.EventLogEntry
@@ -101,7 +97,6 @@ class MonitorForegroundService : Service() {
     @Inject lateinit var deviceStatusRepository: DeviceStatusRepository
     @Inject lateinit var usageRepository: UsageRepository
     @Inject lateinit var hourlyUsageRepository: HourlyUsageRepository
-    @Inject lateinit var sosTrigger: SosTrigger
     @Inject lateinit var stepCounterTracker: StepCounterTracker
     @Inject lateinit var overlayController: OverlayBlockerController
     @Inject lateinit var lockScreenBlockController: LockScreenBlockController
@@ -131,14 +126,12 @@ class MonitorForegroundService : Service() {
      *  to be showing at that exact moment (e.g. a schedule block starting right as the radio comes
      *  back on). See [hideAirplaneModeOverlayIfShowing]. */
     @Volatile private var airplaneOverlayActive = false
-    private var shakeDetector: ShakeDetector? = null
     private var callStateWatcher: CallStateWatcher? = null
 
     override fun onCreate() {
         super.onCreate()
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         startForeground(NOTIFICATION_ID, buildNotification())
-        registerShakeDetector()
         registerLocationProvidersReceiver()
         registerAirplaneModeReceiver()
         callStateWatcher = CallStateWatcher(
@@ -356,36 +349,10 @@ class MonitorForegroundService : Service() {
         locationProvidersReceiver?.let { runCatching { unregisterReceiver(it) } }
         airplaneModeReceiver?.let { runCatching { unregisterReceiver(it) } }
         overlayController.hide()
-        shakeDetector?.let {
-            (getSystemService(Context.SENSOR_SERVICE) as SensorManager).unregisterListener(it)
-        }
         callStateWatcher?.stop()
         stepCounterTracker.stop()
         serviceScope.cancel()
         super.onDestroy()
-    }
-
-    /**
-     * Hardware-independent SOS trigger: a deliberate hard-shake-several-times gesture. Tried volume-button
-     * interception via the accessibility service first, but that proved unreliable in practice — Samsung
-     * and other OEMs often handle volume keys below where an accessibility service can see them. The
-     * accelerometer has no such OEM gatekeeping.
-     */
-    private fun registerShakeDetector() {
-        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
-        val detector = ShakeDetector {
-            serviceScope.launch {
-                sosTrigger.trigger(
-                    this@MonitorForegroundService,
-                    message = "Ребёнок сильно потряс телефон — сигнал SOS"
-                )
-            }
-        }
-        shakeDetector = detector
-        // NORMAL (~200ms) is plenty for a gesture that unfolds over ~1.5s — GAME-rate (~20ms) sampling
-        // 24/7 in the background was unnecessary battery/CPU load with no detection benefit.
-        sensorManager.registerListener(detector, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
     }
 
     private suspend fun pollLoop() {
