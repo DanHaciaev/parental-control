@@ -6,9 +6,21 @@
 
 Сняты с эмулятора (Pixel 7, Android 16). Имя ребёнка на скриншотах заменено на «Ребёнок».
 
-| Вход родителя | Главная | Ещё | Nest Kid: подключение |
+**Nest Parent**
+
+| Вход | Главная | Приложения ребёнка | Задания |
 |---|---|---|---|
-| ![Вход](docs/screenshots/parent-login.png) | ![Главная](docs/screenshots/parent-home.png) | ![Ещё](docs/screenshots/parent-more.png) | ![Подключение](docs/screenshots/child-pairing.png) |
+| ![Вход](docs/screenshots/parent-login.png) | ![Главная](docs/screenshots/parent-home.png) | ![Приложения](docs/screenshots/parent-apps.png) | ![Задания](docs/screenshots/parent-tasks.png) |
+
+| Ещё | Код защиты и вход | Расписания | Лимиты по дням |
+|---|---|---|---|
+| ![Ещё](docs/screenshots/parent-more.png) | ![Код защиты](docs/screenshots/parent-security.png) | ![Расписания](docs/screenshots/parent-schedules.png) | ![Лимиты по дням](docs/screenshots/parent-weekly-limits.png) |
+
+**Nest Kid**
+
+| Что увидят родители | Подключение |
+|---|---|
+| ![Согласие](docs/screenshots/child-disclosure.png) | ![Подключение](docs/screenshots/child-pairing.png) |
 
 ## Дизайн
 

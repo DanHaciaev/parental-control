@@ -1,5 +1,8 @@
 package com.teo.parent.map
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.NestIcon
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +38,11 @@ fun BatteryBadge(status: DeviceStatus?, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(if (status.isCharging) "⚡" else if (low) "🪫" else "🔋")
+            NestIcon(
+                CoreR.drawable.nest_ic_battery_medium,
+                tint = if (low) NestColors.Danger else NestColors.Navy,
+                size = 20.dp
+            )
             Spacer(Modifier.width(6.dp))
             Column {
                 Text(

@@ -1,5 +1,8 @@
 package com.teo.parent.diagnostics
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.NestIcon
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -78,7 +81,12 @@ private fun StatusRow(label: String, ok: Boolean) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
-        Text(if (ok) "✅" else "❌")
+        NestIcon(
+            if (ok) CoreR.drawable.nest_ic_circle_check else CoreR.drawable.nest_ic_circle_x,
+            contentDescription = if (ok) "в порядке" else "не настроено",
+            tint = if (ok) NestColors.Success else NestColors.Danger,
+            size = 20.dp
+        )
     }
 }
 
