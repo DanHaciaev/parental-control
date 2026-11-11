@@ -17,10 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,19 +29,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.teo.child.admin.DeviceAdminHelper
 import com.teo.child.ui.theme.ParentalControlTheme
+import com.teo.core.model.SecretType
+import com.teo.core.ui.SecretInput
 import dagger.hilt.android.AndroidEntryPoint
 
 /** Launched by ProtectionAccessibilityService when it catches an uninstall attempt against this
- *  app itself, or by MonitorForegroundService's airplane-mode block — a fixed code (see
+ *  app itself, or by MonitorForegroundService's airplane-mode block — the family protection code (see
  *  PinChallengeViewModel) is the only way past either, in person, on this device. [EXTRA_PURPOSE]
  *  selects which happens after a correct code. */
 @AndroidEntryPoint
@@ -123,25 +122,27 @@ private fun PinChallengeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
+            SecretInput(
+                type = uiState.secretType,
                 value = pin,
-                onValueChange = { if (it.length <= 32) pin = it },
-                label = { Text("Код") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { pin = it },
+                label = "Код",
+                isError = uiState.errorMessage != null,
+                onSubmit = { if (pin.isNotEmpty()) viewModel.verify(pin) },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             uiState.errorMessage?.let {
                 Spacer(Modifier.height(12.dp))
                 Text(text = it, color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = { viewModel.verify(pin) },
-                enabled = !uiState.loading && pin.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Подтвердить") }
+            if (uiState.secretType != SecretType.PATTERN) {
+                Button(
+                    onClick = { viewModel.verify(pin) },
+                    enabled = !uiState.loading && pin.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Подтвердить") }
+            }
             Spacer(Modifier.height(12.dp))
             TextButton(
                 onClick = { goHomeThenFinish(context, onDone) },

@@ -88,6 +88,7 @@ import com.teo.parent.installs.InstallApprovalsScreen
 import com.teo.parent.listen.ListenSessionScreen
 import com.teo.parent.map.BatteryBadge
 import com.teo.parent.map.MapScreen
+import com.teo.parent.pin.SecuritySettingsScreen
 import com.teo.parent.requests.RequestsScreen
 import com.teo.parent.schedules.ScheduleListScreen
 import com.teo.parent.settings.FamilySettingsScreen
@@ -104,7 +105,7 @@ import com.teo.parent.work.WorkScheduler
 
 private val TAB_TITLES = listOf("Главная", "История", "Задания", "Карта", "Ещё")
 
-private enum class OverlayScreen { STATISTICS, EVENTS, SCHEDULES, FAMILY_SETTINGS, DEVICE_STATUS, WEEKLY_LIMITS, INSTALL_APPROVALS, DEVICE_PAIRING, LISTEN_SESSION, RECONNECT_CHILD }
+private enum class OverlayScreen { STATISTICS, EVENTS, SCHEDULES, FAMILY_SETTINGS, DEVICE_STATUS, WEEKLY_LIMITS, INSTALL_APPROVALS, DEVICE_PAIRING, LISTEN_SESSION, RECONNECT_CHILD, SECURITY }
 
 @Composable
 private fun NavLabel(text: String) {
@@ -183,6 +184,7 @@ fun DashboardScreen(
                         activeOverlay == OverlayScreen.DEVICE_PAIRING -> "Добавить устройство"
                         activeOverlay == OverlayScreen.LISTEN_SESSION -> "Послушать вокруг"
                         activeOverlay == OverlayScreen.RECONNECT_CHILD -> "Переподключить телефон ребёнка"
+                        activeOverlay == OverlayScreen.SECURITY -> "Код защиты и вход"
                         selectedTab == 0 -> uiState.childName ?: "Главная"
                         else -> TAB_TITLES[selectedTab]
                     }
@@ -311,6 +313,9 @@ fun DashboardScreen(
                 activeOverlay == OverlayScreen.LISTEN_SESSION -> ListenSessionScreen(
                     onClose = { activeOverlay = null }
                 )
+                activeOverlay == OverlayScreen.SECURITY -> SecuritySettingsScreen(
+                    onClose = { activeOverlay = null }
+                )
                 activeOverlay == OverlayScreen.RECONNECT_CHILD -> ReconnectChildScreen(
                     onClose = { activeOverlay = null }
                 )
@@ -326,6 +331,7 @@ fun DashboardScreen(
                     onOpenInstallApprovals = { activeOverlay = OverlayScreen.INSTALL_APPROVALS },
                     onOpenDevicePairing = { activeOverlay = OverlayScreen.DEVICE_PAIRING },
                     onOpenReconnectChild = { activeOverlay = OverlayScreen.RECONNECT_CHILD },
+                    onOpenSecurity = { activeOverlay = OverlayScreen.SECURITY },
                     onRingDevice = { showRingConfirm = true },
                     onListenAround = { activeOverlay = OverlayScreen.LISTEN_SESSION },
                     ringActive = ringActive,
@@ -837,6 +843,7 @@ private fun MoreTabContent(
     onOpenInstallApprovals: () -> Unit,
     onOpenDevicePairing: () -> Unit,
     onOpenReconnectChild: () -> Unit,
+    onOpenSecurity: () -> Unit,
     onRingDevice: () -> Unit,
     onListenAround: () -> Unit,
     ringActive: Boolean,
@@ -870,6 +877,14 @@ private fun MoreTabContent(
                 title = "Настройки семьи",
                 subtitle = "Имя ребёнка, телефон для SOS, общий лимит",
                 onClick = onOpenFamilySettings
+            )
+        }
+        item {
+            SettingsRow(
+                iconRes = R.drawable.ic_emoji_shield,
+                title = "Код защиты и вход",
+                subtitle = "Сменить код, вход по отпечатку",
+                onClick = onOpenSecurity
             )
         }
         item {

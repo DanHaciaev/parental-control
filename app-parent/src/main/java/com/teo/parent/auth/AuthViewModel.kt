@@ -41,7 +41,9 @@ data class AuthUiState(
     val parentInviteCode: String? = null,
     val parentInviteError: String? = null,
     val joinLoading: Boolean = false,
-    val joinError: String? = null
+    val joinError: String? = null,
+    /** Result of "Забыли пароль?" — shown in that dialog. */
+    val passwordResetMessage: String? = null
 ) {
     /** The selected profile is a not-yet-paired extra child, so the pairing screen can back out of it. */
     val canCancelAddChild: Boolean
@@ -198,6 +200,35 @@ class AuthViewModel @Inject constructor(
     fun signOut() {
         auth.signOut()
         _uiState.value = AuthUiState(loading = false)
+    }
+
+    /**
+     * Firebase emails a link to set a new account password. With email-enumeration protection on
+     * (Firebase's default for new projects) this succeeds even for an unknown address, so the
+     * message never claims the account exists.
+     */
+    fun sendPasswordReset(email: String) {
+        val trimmed = email.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, passwordResetMessage = null) }
+            try {
+                auth.setLanguageCode("ru")
+                auth.sendPasswordResetEmail(trimmed).await()
+                _uiState.update {
+                    it.copy(
+                        loading = false,
+                        passwordResetMessage = "Если аккаунт с адресом $trimmed есть, на него отправлено письмо со ссылкой для нового пароля. Не пришло за пару минут — проверьте папку «Спам»."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(loading = false, passwordResetMessage = mapAuthError(e)) }
+            }
+        }
+    }
+
+    fun clearPasswordResetMessage() {
+        _uiState.update { it.copy(passwordResetMessage = null) }
     }
 
     fun clearError() {

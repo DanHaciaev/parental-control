@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.teo.core.model.SecretType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -55,23 +56,26 @@ class ChildPreferences @Inject constructor(
 
     private val protectionPinHashKey = stringPreferencesKey("protection_pin_hash")
     private val protectionPinSaltKey = stringPreferencesKey("protection_pin_salt")
+    private val protectionSecretTypeKey = stringPreferencesKey("protection_secret_type")
 
     /** Local mirror of Family.protectionPinHash/Salt, refreshed on every family-doc update while
      *  online (see MonitorForegroundService.observeFamilySettings) — the PIN challenge screen
      *  verifies against this instead of a live Firestore call, since the one time this whole
      *  feature actually matters most (airplane mode just got turned on to dodge every other block)
      *  is exactly when there's no network left to make that call with. */
-    suspend fun getCachedProtectionPin(): Pair<String, String>? {
+    suspend fun getCachedProtectionPin(): CachedProtectionCode? {
         val prefs = context.dataStore.data.first()
         val hash = prefs[protectionPinHashKey]
         val salt = prefs[protectionPinSaltKey]
-        return if (hash.isNullOrEmpty() || salt.isNullOrEmpty()) null else hash to salt
+        if (hash.isNullOrEmpty() || salt.isNullOrEmpty()) return null
+        return CachedProtectionCode(hash, salt, SecretType.from(prefs[protectionSecretTypeKey]))
     }
 
-    suspend fun setCachedProtectionPin(hash: String, salt: String) {
+    suspend fun setCachedProtectionPin(hash: String, salt: String, type: SecretType) {
         context.dataStore.edit { prefs ->
             prefs[protectionPinHashKey] = hash
             prefs[protectionPinSaltKey] = salt
+            prefs[protectionSecretTypeKey] = type.name
         }
     }
 
@@ -93,3 +97,5 @@ class ChildPreferences @Inject constructor(
         }
     }
 }
+
+data class CachedProtectionCode(val hash: String, val salt: String, val type: SecretType)

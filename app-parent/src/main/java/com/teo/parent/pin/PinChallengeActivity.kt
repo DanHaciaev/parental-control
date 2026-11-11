@@ -3,7 +3,6 @@ package com.teo.parent.pin
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,10 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,17 +24,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.teo.parent.admin.DeviceAdminHelper
 import com.teo.parent.ui.theme.ParentalControlTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class PinChallengeActivity : ComponentActivity() {
+class PinChallengeActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -57,7 +53,6 @@ private fun PinChallengeScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var pin by remember { mutableStateOf("") }
     var protectionRemoved by remember { mutableStateOf(false) }
 
     Column(
@@ -72,26 +67,15 @@ private fun PinChallengeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
-                value = pin,
-                onValueChange = { if (it.length <= 6 && it.all(Char::isDigit)) pin = it },
-                label = { Text("Код") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                modifier = Modifier.fillMaxWidth()
+            CodeEntry(
+                secretType = uiState.secretType,
+                loading = uiState.loading,
+                errorMessage = uiState.errorMessage,
+                confirmLabel = "Подтвердить",
+                onVerify = viewModel::verify,
+                onBiometricSuccess = viewModel::unlockWithBiometric
             )
-            uiState.errorMessage?.let {
-                Spacer(Modifier.height(12.dp))
-                Text(text = it, color = MaterialTheme.colorScheme.error)
-            }
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = { viewModel.verify(pin) },
-                enabled = !uiState.loading && pin.length >= 4,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Подтвердить") }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(4.dp))
             TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
         } else if (!protectionRemoved) {
             Text(

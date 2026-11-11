@@ -5,6 +5,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.teo.core.FirestorePaths
 import com.teo.core.model.Family
+import com.teo.core.model.SecretType
 import com.teo.core.util.PinHasher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
@@ -90,7 +91,8 @@ class FamilyRepository @Inject constructor(
                 parentPhone = template.parentPhone,
                 timezone = template.timezone,
                 protectionPinHash = template.protectionPinHash,
-                protectionPinSalt = template.protectionPinSalt
+                protectionPinSalt = template.protectionPinSalt,
+                protectionSecretType = template.protectionSecretType
             )
         ).await()
         return doc.id
@@ -118,14 +120,15 @@ class FamilyRepository @Inject constructor(
 
     /** Written to every child profile the parent manages — one PIN guards the parent app and all
      *  children's phones, see [createChildProfile]. */
-    suspend fun setProtectionPin(parentUid: String, pin: String) {
-        val hashed = PinHasher.hash(pin)
+    suspend fun setProtectionPin(parentUid: String, secret: String, type: SecretType) {
+        val hashed = PinHasher.hash(secret)
         familiesForParent(parentUid).forEach { family ->
             familiesRef().document(family.id)
                 .update(
                     mapOf(
                         "protectionPinHash" to hashed.hash,
-                        "protectionPinSalt" to hashed.salt
+                        "protectionPinSalt" to hashed.salt,
+                        "protectionSecretType" to type.name
                     )
                 ).await()
         }

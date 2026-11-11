@@ -3,6 +3,7 @@ package com.teo.parent.nav
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -174,6 +175,18 @@ fun ParentNavHost(openInstallApprovals: MutableState<Boolean> = mutableStateOf(f
 
         if (uiState.pinSet && !appUnlocked) {
             AppLockScreen(viewModel = lockViewModel, modifier = Modifier.fillMaxSize())
+        } else if (appUnlocked && lockUiState.resetRequired) {
+            // Got in with the account password because the code was forgotten — a new code
+            // before anything else, so the old (possibly known to the child) one stops working.
+            Surface(modifier = Modifier.fillMaxSize()) {
+                SetPinScreen(
+                    title = "Задайте новый код защиты",
+                    onSaved = {
+                        lockViewModel.codeResetDone()
+                        authViewModel.refreshFamilyState()
+                    }
+                )
+            }
         }
     }
 }

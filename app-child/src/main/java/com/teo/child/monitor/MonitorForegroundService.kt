@@ -54,6 +54,7 @@ import com.teo.core.model.EventType
 import com.teo.core.model.Family
 import com.teo.core.model.InstallApprovalStatus
 import com.teo.core.model.LocationPoint
+import com.teo.core.model.SecretType
 import com.teo.core.model.HourlyUsageEntry
 import com.teo.core.model.UsageEntry
 import com.teo.core.repository.CommandRepository
@@ -305,7 +306,9 @@ class MonitorForegroundService : Service() {
                     familyRepository.observeFamily(familyId).collect { fam ->
                         family = fam
                         if (!fam?.protectionPinHash.isNullOrEmpty() && !fam?.protectionPinSalt.isNullOrEmpty()) {
-                            childPreferences.setCachedProtectionPin(fam!!.protectionPinHash, fam.protectionPinSalt)
+                            childPreferences.setCachedProtectionPin(
+                                fam!!.protectionPinHash, fam.protectionPinSalt, SecretType.from(fam.protectionSecretType)
+                            )
                         }
                     }
                 } catch (e: Exception) {
@@ -1025,8 +1028,12 @@ class MonitorForegroundService : Service() {
     private fun buildNotification(): android.app.Notification {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // LOW, not MIN: a MIN-importance foreground notification is collapsed out of the status
+            // bar, and aggressive OEM battery managers treat such services as fair game to kill. A
+            // channel's importance can't be raised after creation, hence the new id and the cleanup.
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
             val channel = NotificationChannel(
-                CHANNEL_ID, "Nest Kid", NotificationManager.IMPORTANCE_MIN
+                CHANNEL_ID, "Родительский контроль", NotificationManager.IMPORTANCE_LOW
             ).apply { setShowBadge(false) }
             manager.createNotificationChannel(channel)
         }
@@ -1038,17 +1045,19 @@ class MonitorForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Nest Kid активен")
+            .setContentTitle("Nest Kid: родительский контроль включён")
+            .setContentText("Родители видят местоположение и время в приложениях")
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
             .build()
     }
 
     companion object {
         private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "monitor_service"
+        private const val CHANNEL_ID = "monitor_service_v2"
+        private const val LEGACY_CHANNEL_ID = "monitor_service"
         private const val POLL_INTERVAL_SECONDS = 3
         private const val POLL_INTERVAL_MS = POLL_INTERVAL_SECONDS * 1000L
         private const val LOCATION_STATUS_INTERVAL_MS = 60_000L

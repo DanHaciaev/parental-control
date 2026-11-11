@@ -59,6 +59,10 @@ data class Family(
     val timezone: String = "Europe/Moscow",
     val protectionPinHash: String = "",
     val protectionPinSalt: String = "",
+    /** Which kind of secret protectionPinHash was made from — a [SecretType] name. Decides the
+     *  input shown wherever the code is entered (both phones). Older documents have no field and
+     *  were always digit PINs. */
+    val protectionSecretType: String = SecretType.PIN.name,
     /** Minutes since midnight; both null = bedtime disabled. */
     val bedtimeStartMinutes: Int? = null,
     val bedtimeEndMinutes: Int? = null,

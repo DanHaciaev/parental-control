@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +38,7 @@ fun LoginScreen(viewModel: AuthViewModel = hiltViewModel()) {
     var isSignUpMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(isSignUpMode) { viewModel.clearError() }
 
@@ -100,6 +102,16 @@ fun LoginScreen(viewModel: AuthViewModel = hiltViewModel()) {
 
         Spacer(Modifier.height(12.dp))
 
+        if (!isSignUpMode) {
+            TextButton(
+                onClick = {
+                    viewModel.clearPasswordResetMessage()
+                    showResetDialog = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Забыли пароль?") }
+        }
+
         TextButton(
             onClick = { isSignUpMode = !isSignUpMode },
             modifier = Modifier.fillMaxWidth()
@@ -110,5 +122,59 @@ fun LoginScreen(viewModel: AuthViewModel = hiltViewModel()) {
             )
         }
     }
+
+    if (showResetDialog) {
+        PasswordResetDialog(
+            initialEmail = email,
+            loading = uiState.loading,
+            message = uiState.passwordResetMessage,
+            onSend = viewModel::sendPasswordReset,
+            onDismiss = { showResetDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun PasswordResetDialog(
+    initialEmail: String,
+    loading: Boolean,
+    message: String?,
+    onSend: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var resetEmail by remember { mutableStateOf(initialEmail) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Восстановить пароль") },
+        text = {
+            Column {
+                Text(
+                    "Пришлём письмо со ссылкой — по ней можно задать новый пароль. Потом войдите с ним здесь.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = resetEmail,
+                    onValueChange = { resetEmail = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                message?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(it, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSend(resetEmail) }, enabled = resetEmail.isNotBlank() && !loading) {
+                Text(if (message == null) "Отправить" else "Отправить ещё раз")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(if (message == null) "Отмена" else "Готово") }
+        }
+    )
 }
 
