@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.teo.core.R as CoreR
 import com.teo.core.model.EventLogEntry
 import com.teo.core.model.EventType
 import com.teo.parent.R
@@ -74,14 +75,14 @@ private fun EventCard(event: EventLogEntry, onSeen: () -> Unit) {
 
 @DrawableRes
 private fun eventIconRes(type: EventType): Int = when (type) {
-    EventType.NEW_INSTALL -> R.drawable.ic_emoji_package
-    EventType.LIMIT_REACHED -> R.drawable.ic_emoji_alarm_clock
-    EventType.UNINSTALL_ATTEMPT_BLOCKED -> R.drawable.ic_emoji_shield
-    EventType.LOW_BATTERY -> R.drawable.ic_emoji_battery
-    EventType.SOS -> R.drawable.ic_emoji_sos
-    EventType.GEOFENCE -> R.drawable.ic_emoji_map_pin
-    EventType.PROTECTION_TAMPERED -> R.drawable.ic_emoji_warning
-    EventType.LOCATION_DISABLED -> R.drawable.ic_emoji_no_mobile
-    EventType.INSTALL_ATTEMPT -> R.drawable.ic_emoji_package
-    EventType.AIRPLANE_MODE_ENABLED -> R.drawable.ic_emoji_warning
+    EventType.NEW_INSTALL -> CoreR.drawable.nest_ic_package
+    EventType.LIMIT_REACHED -> CoreR.drawable.nest_ic_alarm_clock
+    EventType.UNINSTALL_ATTEMPT_BLOCKED -> CoreR.drawable.nest_ic_shield
+    EventType.LOW_BATTERY -> CoreR.drawable.nest_ic_battery_medium
+    EventType.SOS -> CoreR.drawable.nest_ic_siren
+    EventType.GEOFENCE -> CoreR.drawable.nest_ic_map_pin
+    EventType.PROTECTION_TAMPERED -> CoreR.drawable.nest_ic_triangle_alert
+    EventType.LOCATION_DISABLED -> CoreR.drawable.nest_ic_ban
+    EventType.INSTALL_ATTEMPT -> CoreR.drawable.nest_ic_package
+    EventType.AIRPLANE_MODE_ENABLED -> CoreR.drawable.nest_ic_triangle_alert
 }

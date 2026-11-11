@@ -23,6 +23,15 @@ class ChildPreferences @Inject constructor(
 ) {
     private val familyIdKey = stringPreferencesKey("family_id")
     private val onboardingCompleteKey = booleanPreferencesKey("onboarding_complete")
+    private val monitoringConsentKey = booleanPreferencesKey("monitoring_consent")
+
+    /** The parent accepted the "what parents will see" disclosure (DisclosureScreen) on this
+     *  phone — required before pairing or any permission prompt. */
+    val monitoringConsent: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[monitoringConsentKey] ?: false }
+
+    suspend fun setMonitoringConsent() {
+        context.dataStore.edit { prefs -> prefs[monitoringConsentKey] = true }
+    }
 
     val familyId: Flow<String?> = context.dataStore.data.map { prefs -> prefs[familyIdKey] }
 

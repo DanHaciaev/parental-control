@@ -18,10 +18,12 @@ import com.teo.child.home.HomeScreen
 import com.teo.child.monitor.MonitorForegroundService
 import com.teo.child.pairing.PairingScreen
 import com.teo.child.pairing.PairingViewModel
+import com.teo.child.permission.DisclosureScreen
 import com.teo.child.permission.PermissionsScreen
 import com.teo.child.work.WorkScheduler
 
 private const val ROUTE_SPLASH = "splash"
+private const val ROUTE_DISCLOSURE = "disclosure"
 private const val ROUTE_PAIRING = "pairing"
 private const val ROUTE_PERMISSIONS = "permissions"
 private const val ROUTE_HOME = "home"
@@ -39,11 +41,13 @@ fun ChildNavHost() {
     val pairingViewModel: PairingViewModel = hiltViewModel()
     val uiState by pairingViewModel.uiState.collectAsState()
     val onboardingComplete by pairingViewModel.onboardingComplete.collectAsState(initial = false)
+    val monitoringConsent by pairingViewModel.monitoringConsent.collectAsState(initial = null)
 
-    LaunchedEffect(uiState.loading, uiState.paired, onboardingComplete) {
-        if (uiState.loading) return@LaunchedEffect
+    LaunchedEffect(uiState.loading, uiState.paired, onboardingComplete, monitoringConsent) {
+        if (uiState.loading || monitoringConsent == null) return@LaunchedEffect
 
         val target = when {
+            monitoringConsent != true -> ROUTE_DISCLOSURE
             !uiState.paired -> ROUTE_PAIRING
             !onboardingComplete -> ROUTE_PERMISSIONS
             else -> ROUTE_HOME
@@ -64,6 +68,7 @@ fun ChildNavHost() {
                 CircularProgressIndicator()
             }
         }
+        composable(ROUTE_DISCLOSURE) { DisclosureScreen(onAccept = pairingViewModel::acceptMonitoringConsent) }
         composable(ROUTE_PAIRING) { PairingScreen(viewModel = pairingViewModel) }
         composable(ROUTE_PERMISSIONS) {
             PermissionsScreen(

@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.teo.child.home.EmojiIcon
 import com.teo.child.monitor.StepCounterTracker
+import com.teo.core.R as CoreR
 import com.teo.core.model.SkillTemplateCatalog
 import com.teo.core.model.SkillUnit
 
@@ -106,7 +107,7 @@ private fun SkillCard(row: ChildSkillRow, onIncrement: () -> Unit) {
             if (!row.completed && isAutoTracked) {
                 Spacer(Modifier.width(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    EmojiIcon(com.teo.child.R.drawable.ic_emoji_phone_device, size = 16.dp)
+                    EmojiIcon(CoreR.drawable.nest_ic_smartphone, size = 16.dp)
                     Spacer(Modifier.width(4.dp))
                     Text(
                         text = "сам по шагомеру",

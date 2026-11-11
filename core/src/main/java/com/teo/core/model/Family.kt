@@ -7,10 +7,10 @@ import java.util.Date
 enum class CommandType {
     LOCK_NOW, REFRESH_STATUS,
     RING_DEVICE, STOP_RING, SET_RINGER_NORMAL, SET_RINGER_SILENT,
-    /** Requires WRITE_SECURE_SETTINGS on the child device — a normal app permission can't grant
-     *  itself this, it has to be handed to the app once via `adb shell pm grant ... WRITE_SECURE_SETTINGS`
-     *  when the device is set up (see MonitorForegroundService's command handler). Doesn't survive
-     *  an uninstall+reinstall of the child app without redoing that step. */
+    /** Removed with WRITE_SECURE_SETTINGS (only grantable over adb, so never usable by a real
+     *  family, and a red flag for Play review). Kept, unused, purely so Firestore can still
+     *  deserialize a pendingCommand holding this value. Never sent again. */
+    @Deprecated("No longer sent; kept only for Firestore deserialization of old documents")
     ENABLE_LOCATION,
     /** Pulled the "Выключить авиарежим" remote button — confirmed live it can't actually work in
      *  the one case it would matter (child has zero connectivity, full airplane mode): the command
@@ -76,6 +76,11 @@ data class Family(
      *  or the total daily time cap running out. The app itself and core telecom packages are always
      *  exempt regardless of this list, so a locked-out child can still see why and still take calls. */
     val fullBlockAllowedPackages: List<String> = emptyList(),
+    /** Lock the child's whole phone (until the protection code is entered) while airplane mode is
+     *  on. Opt-in: the parent is alerted either way, this only adds the lock. */
+    val airplaneModeLock: Boolean = false,
+    /** Lock the child's phone while location is switched off. Opt-in, alert sent either way. */
+    val locationOffLock: Boolean = false,
     @ServerTimestamp val createdAt: Date? = null,
     val pendingCommand: PendingCommand? = null
 ) {

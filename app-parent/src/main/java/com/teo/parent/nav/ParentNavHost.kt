@@ -35,6 +35,7 @@ import com.teo.parent.pairing.PairingScreen
 import com.teo.parent.pin.AppLockScreen
 import com.teo.parent.pin.PinChallengeViewModel
 import com.teo.parent.pin.SetPinScreen
+import com.teo.parent.protect.ProtectSetupChoice
 import com.teo.parent.protect.ProtectSetupScreen
 import com.teo.parent.work.ParentAlertService
 
@@ -88,7 +89,8 @@ fun ParentNavHost(openInstallApprovals: MutableState<Boolean> = mutableStateOf(f
     LaunchedEffect(uiState.loading, uiState.isSignedIn, uiState.childLinked, uiState.pinSet, uiState.familyId) {
         if (uiState.loading) return@LaunchedEffect
 
-        val ownAppProtected = DeviceAdminHelper.isActive(context) && AccessibilityPermissionHelper.isEnabled(context)
+        val ownAppProtected = (DeviceAdminHelper.isActive(context) && AccessibilityPermissionHelper.isEnabled(context)) ||
+            ProtectSetupChoice.isSkipped(context)
         val targetRoute = when {
             !uiState.isSignedIn -> ROUTE_LOGIN
             !uiState.childLinked -> ROUTE_PAIRING
@@ -148,12 +150,17 @@ fun ParentNavHost(openInstallApprovals: MutableState<Boolean> = mutableStateOf(f
                 SetPinScreen(onSaved = { authViewModel.refreshFamilyState() })
             }
             composable(ROUTE_PROTECT) {
+                val toDashboard = {
+                    navController.navigate(ROUTE_DASHBOARD) {
+                        popUpTo(0)
+                        launchSingleTop = true
+                    }
+                }
                 ProtectSetupScreen(
-                    onDone = {
-                        navController.navigate(ROUTE_DASHBOARD) {
-                            popUpTo(0)
-                            launchSingleTop = true
-                        }
+                    onDone = toDashboard,
+                    onSkip = {
+                        ProtectSetupChoice.setSkipped(context, true)
+                        toDashboard()
                     }
                 )
             }

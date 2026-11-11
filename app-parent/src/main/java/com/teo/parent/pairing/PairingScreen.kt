@@ -1,5 +1,8 @@
 package com.teo.parent.pairing
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.NestOnboardingScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -54,26 +57,11 @@ fun PairingScreen(
         if (uiState.childPaired) onPaired()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = if (isAdditionalChild) "Ещё один ребёнок" else "Телефон ребёнка",
+        subtitle = "Установите «Nest Kid» на телефон ребёнка и введите там этот код. Код действует 15 минут.",
+        headerIcon = CoreR.drawable.nest_ic_smartphone
     ) {
-        Text(
-            text = if (isAdditionalChild) "Привяжите телефон ещё одного ребёнка" else "Привяжите телефон ребёнка",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Установите приложение «Nest Kid» на телефон ребёнка и введите там этот код. Код действует 15 минут.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(32.dp))
 
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -91,8 +79,8 @@ fun PairingScreen(
                 } else {
                     Text(
                         text = uiState.code?.let { it.take(3) + " " + it.drop(3) } ?: "——— ———",
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.displayMedium,
+                        color = NestColors.Navy,
                         letterSpacing = 4.sp
                     )
                 }
@@ -114,7 +102,9 @@ fun PairingScreen(
         Text(
             text = "Ждём подключение ребёнка…",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            color = NestColors.InkSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(24.dp))

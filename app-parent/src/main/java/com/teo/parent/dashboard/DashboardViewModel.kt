@@ -305,7 +305,6 @@ class DashboardViewModel @Inject constructor(
 
     fun setRingerSilent() = sendCommand(CommandType.SET_RINGER_SILENT)
 
-    fun enableLocation() = sendCommand(CommandType.ENABLE_LOCATION)
 
     private fun sendCommand(type: CommandType) {
         val familyId = _uiState.value.familyId ?: return

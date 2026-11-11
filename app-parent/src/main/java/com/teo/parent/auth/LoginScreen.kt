@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.teo.core.ui.components.NestOnboardingScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,23 +43,11 @@ fun LoginScreen(viewModel: AuthViewModel = hiltViewModel()) {
 
     LaunchedEffect(isSignUpMode) { viewModel.clearError() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = if (isSignUpMode) "Создать аккаунт" else "Nest Parent",
+        subtitle = if (isSignUpMode) "Вход по email — если поменяете телефон, всё восстановится автоматически."
+        else "Вход для родителя"
     ) {
-        Text(
-            text = if (isSignUpMode) "Создать аккаунт родителя" else "Вход для родителя",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Вход по email — если поменяете телефон, всё восстановится автоматически.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(32.dp))
 
         OutlinedTextField(
             value = email,

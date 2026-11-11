@@ -13,9 +13,13 @@ object BatteryOptimizationHelper {
         return powerManager.isIgnoringBatteryOptimizations(context.packageName)
     }
 
+    /** Opens this app's own system settings page, where the parent sets Battery → "Unrestricted"
+     *  ("Без ограничений" on Samsung). Not the one-tap ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+     *  dialog: that needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which Google Play allows only for
+     *  a short list of app categories. */
     fun requestIgnore(context: Context) {
         val intent = Intent(
-            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
             Uri.parse("package:${context.packageName}")
         )
         context.startActivity(intent)

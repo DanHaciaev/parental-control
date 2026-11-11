@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.teo.core.R as CoreR
 import com.teo.core.model.Schedule
 import com.teo.parent.R
 import com.teo.parent.dashboard.EmojiIcon
@@ -91,7 +92,7 @@ private fun ScheduleRow(schedule: Schedule, onClick: () -> Unit, onToggle: (Bool
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            EmojiIcon(R.drawable.ic_emoji_moon, size = 28.dp)
+            EmojiIcon(CoreR.drawable.nest_ic_moon, size = 28.dp)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(schedule.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)

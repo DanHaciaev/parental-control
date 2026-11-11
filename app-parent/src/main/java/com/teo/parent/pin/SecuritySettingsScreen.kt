@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -30,6 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.teo.core.ui.displayName
+import com.teo.parent.accessibility.AccessibilityPermissionHelper
+import com.teo.parent.admin.DeviceAdminHelper
+import com.teo.parent.notifications.SosNotifications
+import com.teo.parent.protect.ProtectSetupChoice
+import com.teo.parent.protect.ProtectSetupScreen
 
 /**
  * "Код защиты и вход": change the protection code (proving it's the parent first — current code,
@@ -44,13 +51,23 @@ fun SecuritySettingsScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var changing by remember { mutableStateOf(false) }
+    var settingUpProtection by remember { mutableStateOf(false) }
     var showForgotDialog by remember { mutableStateOf(false) }
     var biometricOn by remember { mutableStateOf(BiometricUnlock.isEnabled(context)) }
     val biometricAvailable = remember { BiometricUnlock.isAvailable(context) }
 
     when {
+        settingUpProtection -> ProtectSetupScreen(
+            embedded = true,
+            onDone = {
+                ProtectSetupChoice.setSkipped(context, false)
+                settingUpProtection = false
+            },
+            onSkip = { settingUpProtection = false }
+        )
         changing && uiState.unlocked -> SetPinScreen(
             title = "Новый код защиты",
+            embedded = true,
             onSaved = {
                 viewModel.codeResetDone()
                 changing = false
@@ -79,7 +96,7 @@ fun SecuritySettingsScreen(
             TextButton(onClick = { changing = false; viewModel.lock() }, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
         }
         else -> Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
@@ -131,6 +148,42 @@ fun SecuritySettingsScreen(
                             }
                         }
                     )
+                }
+            }
+            Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val protectedNow = DeviceAdminHelper.isActive(context) && AccessibilityPermissionHelper.isEnabled(context)
+                    Text("Защита приложения от удаления", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (protectedNow) "Включена: удалить Nest Parent с этого телефона можно только с кодом защиты."
+                        else "Выключена: Nest Parent можно удалить с этого телефона без кода.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    if (!protectedNow) {
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = { settingUpProtection = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Включить защиту")
+                        }
+                    }
+                }
+            }
+            if (!SosNotifications.canShowFullScreen(context)) {
+                Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("SOS на весь экран", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Не разрешено: SOS придёт обычным срочным уведомлением, а не на весь экран.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = { SosNotifications.openFullScreenSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Разрешить")
+                        }
+                    }
                 }
             }
             TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("Готово") }

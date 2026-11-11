@@ -127,6 +127,9 @@ class MonitorForegroundService : Service() {
      *  to be showing at that exact moment (e.g. a schedule block starting right as the radio comes
      *  back on). See [hideAirplaneModeOverlayIfShowing]. */
     @Volatile private var airplaneOverlayActive = false
+    /** Same idea as [airplaneOverlayActive], for the location-off block — lets it be taken down
+     *  when the parent switches that lock off while it's showing. */
+    @Volatile private var locationOverlayActive = false
     private var callStateWatcher: CallStateWatcher? = null
 
     override fun onCreate() {
@@ -182,15 +185,11 @@ class MonitorForegroundService : Service() {
                                 RingerModeController.setSilent(this@MonitorForegroundService)
                                 commandRepository.acknowledgeCommand(familyId)
                             }
-                            CommandType.ENABLE_LOCATION -> {
-                                enableLocationRemotely()
-                                commandRepository.acknowledgeCommand(familyId)
-                            }
                             // Drains any leftover pending command from before RELEASE_PROTECTION/
-                            // DISABLE_AIRPLANE_MODE were removed — no-op otherwise, just clears it
-                            // so it stops resurfacing.
+                            // DISABLE_AIRPLANE_MODE/ENABLE_LOCATION were removed — no-op otherwise,
+                            // just clears it so it stops resurfacing.
                             @Suppress("DEPRECATION")
-                            CommandType.RELEASE_PROTECTION, CommandType.DISABLE_AIRPLANE_MODE ->
+                            CommandType.RELEASE_PROTECTION, CommandType.DISABLE_AIRPLANE_MODE, CommandType.ENABLE_LOCATION ->
                                 commandRepository.acknowledgeCommand(familyId)
                             else -> Unit
                         }
@@ -379,7 +378,8 @@ class MonitorForegroundService : Service() {
         // for other blocks. Broadcast-driven detection (registerAirplaneModeReceiver) is the
         // primary, instant path; this is just the polling fallback in case that broadcast is ever
         // missed.
-        if (airplaneModeGuard.shouldBlock(isAirplaneModeOn())) {
+        val airplaneOn = isAirplaneModeOn()
+        if (airplaneModeLockEnabled() && airplaneModeGuard.shouldBlock(airplaneOn)) {
             showAirplaneModeOverlay()
             // Same debounced one-shot alert + best-effort location grab as the broadcast receiver
             // — kept here too so a missed ACTION_AIRPLANE_MODE_CHANGED broadcast doesn't silently
@@ -390,6 +390,12 @@ class MonitorForegroundService : Service() {
                 captureAndUploadLocationOnAirplaneMode()
             }
             return
+        }
+        // Lock switched off by the parent: still tell them, just don't block.
+        if (airplaneOn && !airplaneModeNotified) {
+            airplaneModeNotified = true
+            notifyAirplaneModeEnabled()
+            captureAndUploadLocationOnAirplaneMode()
         }
         // Polling fallback for the same hide the broadcast receiver already does instantly on
         // ACTION_AIRPLANE_MODE_CHANGED — without this, a missed/delayed broadcast (confirmed live:
@@ -426,14 +432,15 @@ class MonitorForegroundService : Service() {
             return
         }
 
-        if (!isEssentialDuringFullBlock(trackedPackage) && trackedPackage != SETTINGS_PACKAGE && !isLocationServicesEnabled()) {
+        val locationOff = !isEssentialDuringFullBlock(trackedPackage) && trackedPackage != SETTINGS_PACKAGE &&
+            !isLocationServicesEnabled()
+        if (locationOff && locationOffLockEnabled()) {
             showLocationDisabledOverlay(trackedPackage)
             return
         }
-        locationDisabledNotified = false
-        if (lockScreenBlockController.isShowing(LockScreenBlockActivity.KIND_LOCATION_DISABLED)) {
-            lockScreenBlockController.dismiss()
-        }
+        // Lock switched off by the parent: the alert still goes out, the phone just stays usable.
+        if (locationOff) notifyLocationDisabledIfNeeded() else locationDisabledNotified = false
+        hideLocationOverlayIfShowing()
 
         val approvalStatus = pendingApprovalPackages[trackedPackage]
         if (approvalStatus != null && !isEssentialWithHomeExit(trackedPackage)) {
@@ -671,8 +678,24 @@ class MonitorForegroundService : Service() {
         return runCatching { LocationManagerCompat.isLocationEnabled(locationManager) }.getOrDefault(true)
     }
 
+    /** Both whole-phone locks are opt-in per child (Family settings in app-parent) — off unless the
+     *  parent turned them on, and off until the family document has loaded. */
+    private fun airplaneModeLockEnabled(): Boolean = family?.airplaneModeLock == true
+
+    private fun locationOffLockEnabled(): Boolean = family?.locationOffLock == true
+
+    private fun hideLocationOverlayIfShowing() {
+        if (lockScreenBlockController.isShowing(LockScreenBlockActivity.KIND_LOCATION_DISABLED)) {
+            lockScreenBlockController.dismiss()
+        }
+        if (!locationOverlayActive) return
+        locationOverlayActive = false
+        overlayController.hide()
+    }
+
     private fun showLocationDisabledOverlay(blockedPackage: String?) {
         notifyLocationDisabledIfNeeded()
+        locationOverlayActive = true
         goHome()
         overlayController.show(
             title = "Геолокация отключена",
@@ -895,6 +918,10 @@ class MonitorForegroundService : Service() {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (isLocationServicesEnabled()) return
+                if (!locationOffLockEnabled()) {
+                    notifyLocationDisabledIfNeeded()
+                    return
+                }
                 val trackedPackage = trackedForegroundPackage
                 if (trackedPackage == packageName || trackedPackage == SETTINGS_PACKAGE ||
                     isEssentialDuringFullBlock(trackedPackage)
@@ -922,16 +949,17 @@ class MonitorForegroundService : Service() {
                     hideAirplaneModeOverlayIfShowing()
                     return
                 }
-                if (!airplaneModeGuard.shouldBlock(isOn)) return
-                showAirplaneModeOverlay()
                 // Debounced like checkBattery()'s lowBatteryNotified — Android can fire this
                 // broadcast more than once for a single toggle, and this is a one-shot heads-up,
                 // not something that should spam the parent's event log once per redundant fire.
+                // Sent whether or not the lock itself is switched on.
                 if (!airplaneModeNotified) {
                     airplaneModeNotified = true
                     notifyAirplaneModeEnabled()
                     captureAndUploadLocationOnAirplaneMode()
                 }
+                if (!airplaneModeLockEnabled() || !airplaneModeGuard.shouldBlock(isOn)) return
+                showAirplaneModeOverlay()
             }
         }
         registerReceiver(receiver, IntentFilter(Intent.ACTION_AIRPLANE_MODE_CHANGED))
@@ -941,34 +969,11 @@ class MonitorForegroundService : Service() {
     private fun isAirplaneModeOn(): Boolean =
         Settings.Global.getInt(contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
 
-    /** Remote "get me out of this" for a parent, e.g. the child disabled location and isn't
-     *  cooperating (or isn't reachable) to fix it themselves. Writing this setting needs
-     *  WRITE_SECURE_SETTINGS, which isn't grantable to a normal app at runtime — it has to be
-     *  handed to this app once via
-     *  `adb shell pm grant com.teo.child android.permission.WRITE_SECURE_SETTINGS`
-     *  when the device is set up (doesn't survive an uninstall+reinstall without redoing that
-     *  step). Silently does nothing if that was never granted — runCatching absorbs the
-     *  SecurityException rather than crashing the command-handling loop over it.
-     *
-     *  There's deliberately no airplane-mode equivalent of this — confirmed live it can't actually
-     *  work in the one case it would matter (zero connectivity): the command to turn it back off
-     *  travels over Firestore, so a device with no network at all can't receive the very command
-     *  meant to restore its network. LOCATION_MODE itself is deprecated (API 19-28 era) in favor
-     *  of per-provider toggles, but the framework still honors it as a compatibility shim on
-     *  current Android versions, and there's no public non-deprecated equivalent a third-party app
-     *  (even with this permission) can write instead. */
-    @Suppress("DEPRECATION")
-    private fun enableLocationRemotely() {
-        runCatching {
-            Settings.Secure.putInt(contentResolver, Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_HIGH_ACCURACY)
-        }
-    }
-
     private fun showAirplaneModeOverlay() {
         airplaneOverlayActive = true
         overlayController.show(
             title = "Авиарежим включён",
-            reason = "Телефон недоступен, пока включён авиарежим. Попроси маму ввести код защиты, чтобы продолжить.",
+            reason = "Телефон недоступен, пока включён авиарежим. Попроси родителя ввести код защиты, чтобы продолжить.",
             allowRequestMore = false,
             onGoHome = {},
             onRequestMore = {},
@@ -980,7 +985,7 @@ class MonitorForegroundService : Service() {
         ensureLockScreenBlockShowing(
             kind = LockScreenBlockActivity.KIND_AIRPLANE_MODE,
             title = "Авиарежим включён",
-            reason = "Телефон недоступен, пока включён авиарежим. Попроси маму ввести код защиты, чтобы продолжить."
+            reason = "Телефон недоступен, пока включён авиарежим. Попроси родителя ввести код защиты, чтобы продолжить."
         )
     }
 

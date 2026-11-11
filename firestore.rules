@@ -65,9 +65,10 @@ service cloud.firestore {
           request.resource.data.childUid == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childUid'])) ||
         isJoiningViaInvite(familyId);
-      // Only a profile no child ever claimed (cancelled "add child", or a co-parent's own empty
-      // sign-up profile) — a paired child's data is never deletable from a client.
-      allow delete: if isParent(familyId) && resource.data.get('childUid', null) == null;
+      // Parent-only: a cancelled "add child", a co-parent's empty sign-up profile, or account
+      // deletion (AccountRepository deletes every subcollection below first — once this document
+      // is gone, isParent() can no longer be evaluated for them).
+      allow delete: if isParent(familyId);
 
       match /rules/{packageName} {
         allow read: if isFamilyMember(familyId);
@@ -80,21 +81,25 @@ service cloud.firestore {
       match /usageDaily/{entryId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+        allow delete: if isParent(familyId);
       }
 
       match /usageHourly/{entryId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+        allow delete: if isParent(familyId);
       }
 
       match /deviceStatus/{docId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+        allow delete: if isParent(familyId);
       }
 
       match /location/{docId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+        allow delete: if isParent(familyId);
       }
 
       match /geofences/{zoneId} {
@@ -110,6 +115,7 @@ service cloud.firestore {
       match /history/{entryId} {
         allow read: if isFamilyMember(familyId);
         allow write: if isChild(familyId);
+        allow delete: if isParent(familyId);
       }
 
       match /installedApps/{packageName} {
@@ -117,6 +123,7 @@ service cloud.firestore {
         allow create, update: if isChild(familyId);
         allow update: if isParent(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approvalStatus']);
+        allow delete: if isParent(familyId);
       }
 
       match /events/{eventId} {
@@ -124,7 +131,7 @@ service cloud.firestore {
         allow create: if isFamilyMember(familyId);
         allow update: if isParent(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'notifiedTo']);
-        allow delete: if false;
+        allow delete: if isParent(familyId);
       }
 
       match /requests/{requestId} {
@@ -132,7 +139,7 @@ service cloud.firestore {
         allow create: if isChild(familyId);
         allow update: if isParent(familyId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolvedMinutes']);
-        allow delete: if false;
+        allow delete: if isParent(familyId);
       }
 
       match /tasks/{taskId} {
@@ -158,7 +165,7 @@ service cloud.firestore {
           request.resource.data.approved == false &&
           (resource == null || resource.data.approved == false);
         allow update: if isParent(familyId);
-        allow delete: if false;
+        allow delete: if isParent(familyId);
       }
 
       match /listenSession/current {
@@ -182,18 +189,20 @@ service cloud.firestore {
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answerSdp', 'respondedAt', 'endedAt']) &&
             request.resource.data.status in ['ACTIVE', 'DECLINED', 'ENDED']);
 
-        allow delete: if false;
+        allow delete: if isParent(familyId);
 
         match /callerCandidates/{candidateId} {
           allow read: if isFamilyMember(familyId);
           allow create: if isParent(familyId);
-          allow update, delete: if false;
+          allow update: if false;
+          allow delete: if isParent(familyId);
         }
 
         match /calleeCandidates/{candidateId} {
           allow read: if isFamilyMember(familyId);
           allow create: if isChild(familyId);
-          allow update, delete: if false;
+          allow update: if false;
+          allow delete: if isParent(familyId);
         }
       }
 

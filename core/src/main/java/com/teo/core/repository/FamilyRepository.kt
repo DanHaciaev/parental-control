@@ -178,6 +178,12 @@ class FamilyRepository @Inject constructor(
         familiesRef().document(familyId).update("totalScreenTimeCapMinutes", capMinutes).await()
     }
 
+    suspend fun setPhoneLocks(familyId: String, airplaneModeLock: Boolean, locationOffLock: Boolean) {
+        familiesRef().document(familyId).update(
+            mapOf("airplaneModeLock" to airplaneModeLock, "locationOffLock" to locationOffLock)
+        ).await()
+    }
+
     suspend fun setFullBlockAllowedPackages(familyId: String, packages: List<String>) {
         familiesRef().document(familyId).update("fullBlockAllowedPackages", packages).await()
     }

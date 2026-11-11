@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -17,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +49,8 @@ fun FamilySettingsScreen(
     var totalCapEnabled by remember { mutableStateOf(false) }
     var totalCapMinutes by remember { mutableStateOf("60") }
     var fullBlockAllowedPackages by remember { mutableStateOf(emptySet<String>()) }
+    var airplaneModeLock by remember { mutableStateOf(false) }
+    var locationOffLock by remember { mutableStateOf(false) }
     var initialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.loading) {
@@ -57,6 +60,8 @@ fun FamilySettingsScreen(
             totalCapEnabled = uiState.totalCapEnabled
             totalCapMinutes = uiState.totalCapMinutes
             fullBlockAllowedPackages = uiState.fullBlockAllowedPackages
+            airplaneModeLock = uiState.airplaneModeLock
+            locationOffLock = uiState.locationOffLock
             initialized = true
         }
     }
@@ -181,6 +186,23 @@ fun FamilySettingsScreen(
             }
         }
 
+        Spacer(Modifier.height(24.dp))
+        LockSwitch(
+            title = "Блокировать телефон в авиарежиме",
+            description = "Пока включён авиарежим, телефоном нельзя пользоваться без кода защиты. " +
+                "Уведомление вы получите в любом случае.",
+            checked = airplaneModeLock,
+            onCheckedChange = { airplaneModeLock = it }
+        )
+        Spacer(Modifier.height(16.dp))
+        LockSwitch(
+            title = "Блокировать телефон без геолокации",
+            description = "Пока геолокация выключена, телефоном нельзя пользоваться, пока ребёнок её не включит. " +
+                "Звонки остаются доступны. Уведомление вы получите в любом случае.",
+            checked = locationOffLock,
+            onCheckedChange = { locationOffLock = it }
+        )
+
         uiState.errorMessage?.let {
             Spacer(Modifier.height(12.dp))
             Text(text = it, color = MaterialTheme.colorScheme.error)
@@ -189,9 +211,29 @@ fun FamilySettingsScreen(
         Spacer(Modifier.height(32.dp))
         Button(
             onClick = {
-                viewModel.save(childName, phone, totalCapEnabled, totalCapMinutes, fullBlockAllowedPackages)
+                viewModel.save(
+                    childName, phone, totalCapEnabled, totalCapMinutes, fullBlockAllowedPackages,
+                    airplaneModeLock, locationOffLock
+                )
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Сохранить") }
+    }
+}
+
+@Composable
+private fun LockSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

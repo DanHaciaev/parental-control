@@ -1,5 +1,7 @@
 package com.teo.child.pin
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.components.NestOnboardingScreen
 import android.app.KeyguardManager
 import android.content.Intent
 import android.net.Uri
@@ -110,18 +112,12 @@ private fun PinChallengeScreen(
     // (e.g. leaving the airplane-mode success screen) is fine.
     BackHandler(enabled = !uiState.unlocked) { goHomeThenFinish(context, onDone) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = if (uiState.unlocked) "Код верный" else "Код родителя",
+        subtitle = if (uiState.unlocked) null else "Введите код защиты",
+        headerIcon = CoreR.drawable.nest_ic_lock
     ) {
         if (!uiState.unlocked) {
-            Text(
-                text = "Введите код защиты",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(24.dp))
             SecretInput(
                 type = uiState.secretType,
                 value = pin,
@@ -150,13 +146,6 @@ private fun PinChallengeScreen(
             ) { Text("Отмена") }
         } else if (isAirplaneModePurpose) {
             Text(
-                text = "Код верный",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
                 text = "Теперь выключи авиарежим — потяни шторку сверху экрана и нажми на значок самолёта.",
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
@@ -164,13 +153,6 @@ private fun PinChallengeScreen(
             Spacer(Modifier.height(24.dp))
             Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Готово") }
         } else if (!protectionRemoved) {
-            Text(
-                text = "Код верный",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = "Защита от удаления будет снята, и откроется системное окно удаления приложения.",
                 textAlign = TextAlign.Center,

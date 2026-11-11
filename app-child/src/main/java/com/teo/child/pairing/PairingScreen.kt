@@ -1,5 +1,7 @@
 package com.teo.child.pairing
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.components.NestOnboardingScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,26 +33,11 @@ fun PairingScreen(viewModel: PairingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     var code by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = "Подключение",
+        subtitle = "Откройте Nest Parent на своём телефоне — там будет код из 6 цифр. Введите его здесь.",
+        headerIcon = CoreR.drawable.nest_ic_smartphone
     ) {
-        Text(
-            text = "Привет!",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Попроси у мамы или папы код, который они видят на своём телефоне, и введи его здесь.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(32.dp))
 
         OutlinedTextField(
             value = code,

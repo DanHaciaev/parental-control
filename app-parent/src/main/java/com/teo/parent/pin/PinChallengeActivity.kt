@@ -1,5 +1,7 @@
 package com.teo.parent.pin
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.components.NestOnboardingScreen
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -55,18 +57,12 @@ private fun PinChallengeScreen(
     val uiState by viewModel.uiState.collectAsState()
     var protectionRemoved by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = if (uiState.unlocked) "Код верный" else "Удаление защищено",
+        subtitle = if (uiState.unlocked) null else "Введите код защиты, чтобы удалить Nest Parent",
+        headerIcon = CoreR.drawable.nest_ic_shield
     ) {
         if (!uiState.unlocked) {
-            Text(
-                text = "Введите код защиты",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(24.dp))
             CodeEntry(
                 secretType = uiState.secretType,
                 loading = uiState.loading,
@@ -78,13 +74,6 @@ private fun PinChallengeScreen(
             Spacer(Modifier.height(4.dp))
             TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
         } else if (!protectionRemoved) {
-            Text(
-                text = "Код верный",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
             Text(
                 text = "Защита от удаления будет снята, и откроется системное окно удаления приложения.",
                 textAlign = TextAlign.Center,

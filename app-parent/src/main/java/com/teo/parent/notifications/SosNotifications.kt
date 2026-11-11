@@ -5,7 +5,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.teo.parent.MainActivity
@@ -59,5 +61,35 @@ object SosNotifications {
             setSound(null, null)
         }
         manager.createNotificationChannel(channel)
+    }
+
+    /**
+     * Full-screen SOS needs USE_FULL_SCREEN_INTENT, which from Android 14 is only pre-granted to
+     * calling and alarm apps — everything else asks the user in system settings. Without it the
+     * SOS still arrives as a high-priority heads-up notification, just not over the lock screen.
+     */
+    fun canShowFullScreen(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).canUseFullScreenIntent()
+
+    fun openFullScreenSettings(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        val intent = Intent(
+            Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+            Uri.parse("package:${context.packageName}")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+    }
+
+    private const val PREFS = "sos_prompt"
+    private const val KEY_ASKED = "full_screen_asked"
+
+    /** Ask once; after that it's reachable from "Код защиты и вход". */
+    fun shouldAskForFullScreen(context: Context): Boolean =
+        !canShowFullScreen(context) &&
+            !context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ASKED, false)
+
+    fun markFullScreenAsked(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ASKED, true).apply()
     }
 }

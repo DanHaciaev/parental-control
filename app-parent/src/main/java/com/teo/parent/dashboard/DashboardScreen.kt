@@ -1,5 +1,14 @@
 package com.teo.parent.dashboard
 
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.StatusBarOnNavy
+import com.teo.core.ui.components.RowDivider
+import com.teo.core.ui.components.NestScreenHeader
+import com.teo.core.ui.components.NestNavItem
+import com.teo.core.ui.components.NestListRow
+import com.teo.core.ui.components.NestCard
+import com.teo.core.ui.components.NestBottomBar
+import androidx.compose.foundation.layout.WindowInsets
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -31,7 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -72,6 +81,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.teo.core.R as CoreR
 import com.teo.core.model.Device
 import com.teo.core.model.DeviceStatus
 import com.teo.core.model.RuleMode
@@ -88,9 +98,11 @@ import com.teo.parent.installs.InstallApprovalsScreen
 import com.teo.parent.listen.ListenSessionScreen
 import com.teo.parent.map.BatteryBadge
 import com.teo.parent.map.MapScreen
+import com.teo.parent.notifications.SosNotifications
 import com.teo.parent.pin.SecuritySettingsScreen
 import com.teo.parent.requests.RequestsScreen
 import com.teo.parent.schedules.ScheduleListScreen
+import com.teo.parent.settings.DeleteAccountDialog
 import com.teo.parent.settings.FamilySettingsScreen
 import com.teo.parent.statistics.StatisticsScreen
 import com.teo.parent.weeklylimits.WeeklyLimitsScreen
@@ -103,7 +115,7 @@ import com.teo.parent.ui.theme.CategoryTimedBg
 import com.teo.parent.ui.theme.SoftAlert
 import com.teo.parent.work.WorkScheduler
 
-private val TAB_TITLES = listOf("Главная", "История", "Задания", "Карта", "Ещё")
+private val TAB_TITLES = listOf("Главная", "История", "Задания и запросы", "Карта", "Ещё")
 
 private enum class OverlayScreen { STATISTICS, EVENTS, SCHEDULES, FAMILY_SETTINGS, DEVICE_STATUS, WEEKLY_LIMITS, INSTALL_APPROVALS, DEVICE_PAIRING, LISTEN_SESSION, RECONNECT_CHILD, SECURITY }
 
@@ -146,6 +158,7 @@ fun DashboardScreen(
     var weeklyLimitsSelectedDay by remember { mutableStateOf<Int?>(null) }
     var childMenuOpen by remember { mutableStateOf(false) }
     var showParentInvite by remember { mutableStateOf(false) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
 
     BackHandler(enabled = activeOverlay == OverlayScreen.WEEKLY_LIMITS && weeklyLimitsSelectedDay != null) {
         weeklyLimitsSelectedDay = null
@@ -167,195 +180,117 @@ fun DashboardScreen(
         }
         WorkScheduler.scheduleEventPoll(context)
     }
+    var showFullScreenSosPrompt by remember { mutableStateOf(SosNotifications.shouldAskForFullScreen(context)) }
+
+    val switcher: @Composable () -> Unit = {
+        ChildSwitcher(
+            childName = uiState.childName ?: children.firstOrNull { it.familyId == selectedFamilyId }?.name ?: "Ребёнок",
+            children = children,
+            selectedFamilyId = selectedFamilyId,
+            onSelectChild = onSelectChild,
+            onAddChild = onAddChild
+        )
+    }
+    // Every screen here starts with the navy header — white status-bar icons on it.
+    StatusBarOnNavy()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    val title = when {
-                        expandedCategory != null -> categoryTitle(expandedCategory!!)
-                        activeOverlay == OverlayScreen.STATISTICS -> "Статистика"
-                        activeOverlay == OverlayScreen.EVENTS -> "Журнал событий"
-                        activeOverlay == OverlayScreen.SCHEDULES -> "Расписания блокировок"
-                        activeOverlay == OverlayScreen.FAMILY_SETTINGS -> "Настройки семьи"
-                        activeOverlay == OverlayScreen.DEVICE_STATUS -> "Диагностика устройства ребёнка"
-                        activeOverlay == OverlayScreen.WEEKLY_LIMITS -> "Лимиты по дням недели"
-                        activeOverlay == OverlayScreen.INSTALL_APPROVALS -> "Новые приложения"
-                        activeOverlay == OverlayScreen.DEVICE_PAIRING -> "Добавить устройство"
-                        activeOverlay == OverlayScreen.LISTEN_SESSION -> "Послушать вокруг"
-                        activeOverlay == OverlayScreen.RECONNECT_CHILD -> "Переподключить телефон ребёнка"
-                        activeOverlay == OverlayScreen.SECURITY -> "Код защиты и вход"
-                        selectedTab == 0 -> uiState.childName ?: "Главная"
-                        else -> TAB_TITLES[selectedTab]
-                    }
-                    // Every tab and section shows the selected child, so the switcher sits in the
-                    // top bar whenever no section is open, not only on the home tab.
-                    val switcherVisible = expandedCategory == null && activeOverlay == null
-                    if (switcherVisible) {
-                        Box {
-                            Row(
-                                modifier = Modifier.clickable { childMenuOpen = true },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = title, style = MaterialTheme.typography.titleMedium)
-                                Text(text = "  ▾", style = MaterialTheme.typography.titleMedium)
-                            }
-                            DropdownMenu(expanded = childMenuOpen, onDismissRequest = { childMenuOpen = false }) {
-                                children.forEach { child ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = child.name,
-                                                fontWeight = if (child.familyId == selectedFamilyId) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        trailingIcon = if (child.familyId == selectedFamilyId) {
-                                            { Text("✓") }
-                                        } else null,
-                                        onClick = {
-                                            childMenuOpen = false
-                                            onSelectChild(child.familyId)
-                                        }
-                                    )
-                                }
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("+ Добавить ребёнка") },
-                                    onClick = {
-                                        childMenuOpen = false
-                                        onAddChild()
-                                    }
-                                )
-                            }
-                        }
-                    } else {
-                        Text(text = title, style = MaterialTheme.typography.titleMedium)
-                    }
-                },
-                navigationIcon = {
-                    if (expandedCategory != null) {
-                        IconButton(onClick = { expandedCategory = null }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
-                        }
-                    } else if (activeOverlay == OverlayScreen.WEEKLY_LIMITS && weeklyLimitsSelectedDay != null) {
-                        IconButton(onClick = { weeklyLimitsSelectedDay = null }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
-                        }
-                    } else if (activeOverlay != null) {
-                        IconButton(onClick = { activeOverlay = null }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
-                        }
-                    }
+        containerColor = NestColors.Background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            NestBottomBar(
+                items = NAV_ITEMS,
+                selectedIndex = if (activeOverlay == null && expandedCategory == null) selectedTab else -1,
+                onSelect = { index ->
+                    selectedTab = index
+                    activeOverlay = null
+                    expandedCategory = null
                 }
             )
-        },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0 && activeOverlay == null,
-                    onClick = { selectedTab = 0; activeOverlay = null; expandedCategory = null },
-                    icon = { EmojiIcon(R.drawable.ic_emoji_home) },
-                    label = { NavLabel("Главная") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1 && activeOverlay == null,
-                    onClick = { selectedTab = 1; activeOverlay = null; expandedCategory = null },
-                    icon = { EmojiIcon(R.drawable.ic_emoji_history) },
-                    label = { NavLabel("История") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2 && activeOverlay == null,
-                    onClick = { selectedTab = 2; activeOverlay = null; expandedCategory = null },
-                    icon = { EmojiIcon(R.drawable.ic_emoji_check) },
-                    label = { NavLabel("Задания") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3 && activeOverlay == null,
-                    onClick = { selectedTab = 3; activeOverlay = null; expandedCategory = null },
-                    icon = { EmojiIcon(R.drawable.ic_emoji_map_pin) },
-                    label = { NavLabel("Карта") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 4 && activeOverlay == null,
-                    onClick = { selectedTab = 4; activeOverlay = null; expandedCategory = null },
-                    icon = { Text("⋯") },
-                    label = { NavLabel("Ещё") }
-                )
-            }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            val overlay = activeOverlay
+            val category = expandedCategory
             when {
-                expandedCategory != null -> CategoryAppListScreen(
-                    apps = when (expandedCategory) {
-                        AppCategory.BLOCKED -> uiState.blocked
-                        AppCategory.TIMED -> uiState.timed
-                        AppCategory.UNRESTRICTED -> uiState.unrestricted
-                        null -> emptyList()
-                    },
-                    onAppClick = { editingApp = it }
+                category != null -> NestScreenHeader(categoryTitle(category), onBack = { expandedCategory = null })
+                overlay != null -> NestScreenHeader(
+                    title = overlayTitle(overlay),
+                    onBack = {
+                        if (overlay == OverlayScreen.WEEKLY_LIMITS && weeklyLimitsSelectedDay != null) weeklyLimitsSelectedDay = null
+                        else activeOverlay = null
+                    }
                 )
-                activeOverlay == OverlayScreen.STATISTICS -> StatisticsScreen()
-                activeOverlay == OverlayScreen.EVENTS -> EventsScreen()
-                activeOverlay == OverlayScreen.SCHEDULES -> ScheduleListScreen()
-                activeOverlay == OverlayScreen.FAMILY_SETTINGS -> FamilySettingsScreen(
-                    onSaved = { activeOverlay = null }
-                )
-                activeOverlay == OverlayScreen.DEVICE_STATUS -> DeviceStatusScreen()
-                activeOverlay == OverlayScreen.WEEKLY_LIMITS -> WeeklyLimitsScreen(
-                    selectedDay = weeklyLimitsSelectedDay,
-                    onSelectDayChange = { weeklyLimitsSelectedDay = it }
-                )
-                activeOverlay == OverlayScreen.INSTALL_APPROVALS -> InstallApprovalsScreen()
-                activeOverlay == OverlayScreen.DEVICE_PAIRING -> DevicePairingScreen(
-                    onPaired = { activeOverlay = null }
-                )
-                activeOverlay == OverlayScreen.LISTEN_SESSION -> ListenSessionScreen(
-                    onClose = { activeOverlay = null }
-                )
-                activeOverlay == OverlayScreen.SECURITY -> SecuritySettingsScreen(
-                    onClose = { activeOverlay = null }
-                )
-                activeOverlay == OverlayScreen.RECONNECT_CHILD -> ReconnectChildScreen(
-                    onClose = { activeOverlay = null }
-                )
-                selectedTab == 1 -> HistoryScreen()
-                selectedTab == 2 -> RequestsScreen()
-                selectedTab == 3 -> MapScreen()
-                selectedTab == 4 -> MoreTabContent(
-                    onOpenFamilySettings = { activeOverlay = OverlayScreen.FAMILY_SETTINGS },
-                    onOpenDeviceStatus = { activeOverlay = OverlayScreen.DEVICE_STATUS },
-                    onOpenSchedules = { activeOverlay = OverlayScreen.SCHEDULES },
-                    onOpenWeeklyLimits = { weeklyLimitsSelectedDay = null; activeOverlay = OverlayScreen.WEEKLY_LIMITS },
-                    onOpenEvents = { activeOverlay = OverlayScreen.EVENTS },
-                    onOpenInstallApprovals = { activeOverlay = OverlayScreen.INSTALL_APPROVALS },
-                    onOpenDevicePairing = { activeOverlay = OverlayScreen.DEVICE_PAIRING },
-                    onOpenReconnectChild = { activeOverlay = OverlayScreen.RECONNECT_CHILD },
-                    onOpenSecurity = { activeOverlay = OverlayScreen.SECURITY },
-                    onRingDevice = { showRingConfirm = true },
-                    onListenAround = { activeOverlay = OverlayScreen.LISTEN_SESSION },
-                    ringActive = ringActive,
-                    onStopRinging = {
-                        ringActive = false
-                        viewModel.stopRinging()
-                    },
-                    onSetRingerNormal = viewModel::setRingerNormal,
-                    onEnableLocation = viewModel::enableLocation,
-                    onAddChild = onAddChild,
-                    onInviteParent = {
-                        onCreateParentInvite()
-                        showParentInvite = true
-                    },
-                    onSignOut = onSignOut
-                )
-                else -> when {
-                    uiState.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    uiState.apps.isEmpty() -> Text(
-                        text = "Пока нет данных об установленных приложениях. Список появится, как только на телефоне ребёнка всё настроится.",
-                        modifier = Modifier.align(Alignment.Center).padding(32.dp)
+                selectedTab == 0 -> Unit // the home content draws its own, larger header
+                else -> TabHeader(title = TAB_TITLES[selectedTab], switcher = switcher)
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                when {
+                    category != null -> CategoryAppListScreen(
+                        apps = when (category) {
+                            AppCategory.BLOCKED -> uiState.blocked
+                            AppCategory.TIMED -> uiState.timed
+                            AppCategory.UNRESTRICTED -> uiState.unrestricted
+                        },
+                        onAppClick = { editingApp = it }
                     )
+                    activeOverlay == OverlayScreen.STATISTICS -> StatisticsScreen()
+                    activeOverlay == OverlayScreen.EVENTS -> EventsScreen()
+                    activeOverlay == OverlayScreen.SCHEDULES -> ScheduleListScreen()
+                    activeOverlay == OverlayScreen.FAMILY_SETTINGS -> FamilySettingsScreen(
+                        onSaved = { activeOverlay = null }
+                    )
+                    activeOverlay == OverlayScreen.DEVICE_STATUS -> DeviceStatusScreen()
+                    activeOverlay == OverlayScreen.WEEKLY_LIMITS -> WeeklyLimitsScreen(
+                        selectedDay = weeklyLimitsSelectedDay,
+                        onSelectDayChange = { weeklyLimitsSelectedDay = it }
+                    )
+                    activeOverlay == OverlayScreen.INSTALL_APPROVALS -> InstallApprovalsScreen()
+                    activeOverlay == OverlayScreen.DEVICE_PAIRING -> DevicePairingScreen(
+                        onPaired = { activeOverlay = null }
+                    )
+                    activeOverlay == OverlayScreen.LISTEN_SESSION -> ListenSessionScreen(
+                        onClose = { activeOverlay = null }
+                    )
+                    activeOverlay == OverlayScreen.SECURITY -> SecuritySettingsScreen(
+                        onClose = { activeOverlay = null }
+                    )
+                    activeOverlay == OverlayScreen.RECONNECT_CHILD -> ReconnectChildScreen(
+                        onClose = { activeOverlay = null }
+                    )
+                    selectedTab == 1 -> HistoryScreen()
+                    selectedTab == 2 -> RequestsScreen()
+                    selectedTab == 3 -> MapScreen()
+                    selectedTab == 4 -> MoreTabContent(
+                        onOpenFamilySettings = { activeOverlay = OverlayScreen.FAMILY_SETTINGS },
+                        onOpenDeviceStatus = { activeOverlay = OverlayScreen.DEVICE_STATUS },
+                        onOpenSchedules = { activeOverlay = OverlayScreen.SCHEDULES },
+                        onOpenWeeklyLimits = { weeklyLimitsSelectedDay = null; activeOverlay = OverlayScreen.WEEKLY_LIMITS },
+                        onOpenEvents = { activeOverlay = OverlayScreen.EVENTS },
+                        onOpenInstallApprovals = { activeOverlay = OverlayScreen.INSTALL_APPROVALS },
+                        onOpenDevicePairing = { activeOverlay = OverlayScreen.DEVICE_PAIRING },
+                        onOpenReconnectChild = { activeOverlay = OverlayScreen.RECONNECT_CHILD },
+                        onOpenSecurity = { activeOverlay = OverlayScreen.SECURITY },
+                        onRingDevice = { showRingConfirm = true },
+                        onListenAround = { activeOverlay = OverlayScreen.LISTEN_SESSION },
+                        ringActive = ringActive,
+                        onStopRinging = {
+                            ringActive = false
+                            viewModel.stopRinging()
+                        },
+                        onSetRingerNormal = viewModel::setRingerNormal,
+                        onAddChild = onAddChild,
+                        onInviteParent = {
+                            onCreateParentInvite()
+                            showParentInvite = true
+                        },
+                        onDeleteAccount = { showDeleteAccount = true },
+                        onSignOut = onSignOut
+                    )
+                    uiState.loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     else -> HomeContent(
                         uiState = uiState,
+                        switcher = switcher,
                         onAppClick = { editingApp = it },
                         onOpenTasks = { selectedTab = 2 },
                         onOpenEvents = { activeOverlay = OverlayScreen.EVENTS },
@@ -368,6 +303,47 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    if (showDeleteAccount) {
+        DeleteAccountDialog(
+            // The Auth account is already gone — signing out just resets the app to the login screen.
+            onDeleted = {
+                showDeleteAccount = false
+                onSignOut()
+            },
+            onDismiss = { showDeleteAccount = false }
+        )
+    }
+
+    if (showFullScreenSosPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                SosNotifications.markFullScreenAsked(context)
+                showFullScreenSosPrompt = false
+            },
+            title = { Text("SOS на весь экран") },
+            text = {
+                Text(
+                    "Чтобы сигнал SOS от ребёнка появлялся на весь экран даже на заблокированном телефоне, " +
+                        "разрешите это в настройках: включите переключатель для Nest Parent. " +
+                        "Без этого SOS придёт обычным срочным уведомлением."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    SosNotifications.markFullScreenAsked(context)
+                    showFullScreenSosPrompt = false
+                    SosNotifications.openFullScreenSettings(context)
+                }) { Text("Открыть настройки") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    SosNotifications.markFullScreenAsked(context)
+                    showFullScreenSosPrompt = false
+                }) { Text("Не сейчас") }
+            }
+        )
     }
 
     if (showParentInvite) {
@@ -458,73 +434,33 @@ fun DashboardScreen(
     }
 }
 
-@Composable
-private fun HomeContent(
-    uiState: DashboardUiState,
-    onAppClick: (AppRow) -> Unit,
-    onOpenTasks: () -> Unit,
-    onOpenEvents: () -> Unit,
-    onOpenStatistics: () -> Unit,
-    onOpenSchedules: () -> Unit,
-    onOpenFamilySettings: () -> Unit,
-    onShowAllCategory: (AppCategory) -> Unit,
-    onDeviceClick: (Device) -> Unit
-) {
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item { TopStatusCard(status = uiState.deviceStatus, onOpenStatistics = onOpenStatistics) }
-
-        if (uiState.tamperAlert) {
-            item { TamperAlertCard(onClick = onOpenEvents) }
-        }
-        if (uiState.pendingTasksCount > 0) {
-            item { TasksSummaryCard(count = uiState.pendingTasksCount, onClick = onOpenTasks) }
-        }
-
-        item {
-            TotalCapCard(
-                usedMinutes = uiState.timed.sumOf { it.usedMinutesToday },
-                capMinutes = uiState.totalScreenTimeCapMinutes,
-                onClick = onOpenFamilySettings
-            )
-        }
-
-        items(uiState.devices, key = { it.id }) { device ->
-            DeviceCard(device = device, onClick = { onDeviceClick(device) })
-        }
-
-        uiState.activeScheduleName?.let { name ->
-            item { ScheduleCard(activeScheduleName = name, onClick = onOpenSchedules) }
-        }
-
-        appSection(
-            title = "Заблокировано",
-            apps = uiState.blocked,
-            onAppClick = onAppClick,
-            onShowAll = { onShowAllCategory(AppCategory.BLOCKED) }
-        )
-        appSection(
-            title = "По времени",
-            apps = uiState.timed,
-            onAppClick = onAppClick,
-            onShowAll = { onShowAllCategory(AppCategory.TIMED) }
-        )
-        appSection(
-            title = "Без ограничений",
-            apps = uiState.unrestricted,
-            onAppClick = onAppClick,
-            onShowAll = { onShowAllCategory(AppCategory.UNRESTRICTED) }
-        )
-    }
-}
-
 private fun categoryTitle(category: AppCategory): String = when (category) {
     AppCategory.BLOCKED -> "Заблокировано"
     AppCategory.TIMED -> "По времени"
     AppCategory.UNRESTRICTED -> "Без ограничений"
 }
+
+private fun overlayTitle(overlay: OverlayScreen): String = when (overlay) {
+    OverlayScreen.STATISTICS -> "Статистика"
+    OverlayScreen.EVENTS -> "Журнал событий"
+    OverlayScreen.SCHEDULES -> "Расписания"
+    OverlayScreen.FAMILY_SETTINGS -> "Настройки семьи"
+    OverlayScreen.DEVICE_STATUS -> "Диагностика"
+    OverlayScreen.WEEKLY_LIMITS -> "Лимиты по дням"
+    OverlayScreen.INSTALL_APPROVALS -> "Новые приложения"
+    OverlayScreen.DEVICE_PAIRING -> "Добавить устройство"
+    OverlayScreen.LISTEN_SESSION -> "Послушать вокруг"
+    OverlayScreen.RECONNECT_CHILD -> "Переподключить телефон"
+    OverlayScreen.SECURITY -> "Код защиты и вход"
+}
+
+private val NAV_ITEMS = listOf(
+    NestNavItem("Главная", CoreR.drawable.nest_ic_house),
+    NestNavItem("История", CoreR.drawable.nest_ic_history),
+    NestNavItem("Задания", CoreR.drawable.nest_ic_square_check),
+    NestNavItem("Карта", CoreR.drawable.nest_ic_map_pin),
+    NestNavItem("Ещё", CoreR.drawable.nest_ic_ellipsis)
+)
 
 @Composable
 private fun CategoryAppListScreen(apps: List<AppRow>, onAppClick: (AppRow) -> Unit) {
@@ -533,304 +469,28 @@ private fun CategoryAppListScreen(apps: List<AppRow>, onAppClick: (AppRow) -> Un
 
     Column(modifier = Modifier.fillMaxSize()) {
         AppSearchField(query = query, onQueryChange = { query = it })
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (filtered.isEmpty()) {
                 item {
                     Text(
                         text = "Ничего не найдено",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        color = NestColors.InkSecondary,
                         modifier = Modifier.padding(24.dp)
                     )
                 }
             } else {
                 item {
-                    Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            filtered.forEachIndexed { index, app ->
-                                AppRow(app = app, onClick = { onAppClick(app) })
-                                if (index != filtered.lastIndex) RowDivider()
-                            }
+                    NestCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+                        filtered.forEachIndexed { index, app ->
+                            if (index > 0) RowDivider()
+                            AppListRow(app = app, onClick = { onAppClick(app) })
                         }
                     }
                 }
             }
         }
     }
-}
-
-private const val APP_SECTION_PREVIEW_LIMIT = 5
-
-private fun LazyListScope.appSection(
-    title: String,
-    apps: List<AppRow>,
-    onAppClick: (AppRow) -> Unit,
-    onShowAll: () -> Unit
-) {
-    if (apps.isEmpty()) return
-    item {
-        Text(
-            text = "$title (${apps.size})",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-        )
-    }
-    item {
-        val preview = apps.take(APP_SECTION_PREVIEW_LIMIT)
-        Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column {
-                preview.forEachIndexed { index, app ->
-                    AppRow(app = app, onClick = { onAppClick(app) })
-                    if (index != preview.lastIndex || apps.size > APP_SECTION_PREVIEW_LIMIT) RowDivider()
-                }
-                if (apps.size > APP_SECTION_PREVIEW_LIMIT) {
-                    TextButton(onClick = onShowAll, modifier = Modifier.fillMaxWidth()) {
-                        Text("Показать все (${apps.size})")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopStatusCard(status: DeviceStatus?, onOpenStatistics: () -> Unit) {
-    Card(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val spec = status?.currentForegroundApp?.let { AppIconRegistry.forPackage(it) }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(spec?.bg ?: MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (spec != null) {
-                        Image(
-                            painter = painterResource(spec.glyph),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(spec.glyphTint),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        EmojiIcon(R.drawable.ic_emoji_phone_device, size = 22.dp)
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = status?.currentForegroundAppLabel ?: "Нет данных",
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "Сейчас на телефоне",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                BatteryBadge(status = status)
-            }
-            Spacer(Modifier.height(12.dp))
-            OutlinedButton(onClick = onOpenStatistics, modifier = Modifier.fillMaxWidth()) {
-                EmojiIcon(R.drawable.ic_emoji_bar_chart, size = 18.dp)
-                Spacer(Modifier.width(6.dp))
-                Text("Статистика")
-            }
-        }
-    }
-}
-
-@Composable
-private fun TotalCapCard(usedMinutes: Int, capMinutes: Int?, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                EmojiIcon(R.drawable.ic_emoji_stopwatch, size = 28.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Общий лимит на отвлекающие приложения",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (capMinutes != null) "$usedMinutes из $capMinutes мин" else "Не настроен — нажмите, чтобы включить",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-                Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
-            }
-            if (capMinutes != null && capMinutes > 0) {
-                Spacer(Modifier.height(10.dp))
-                val progress = (usedMinutes.toFloat() / capMinutes).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = if (progress >= 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScheduleCard(activeScheduleName: String, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EmojiIcon(R.drawable.ic_emoji_moon, size = 28.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Сейчас действует расписание", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "«$activeScheduleName»",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
-            }
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
-        }
-    }
-}
-
-@Composable
-private fun TamperAlertCard(onClick: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = SoftAlert),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EmojiIcon(R.drawable.ic_emoji_warning, size = 28.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Защита была отключена", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(
-                    text = "На телефоне ребёнка кто-то выключил защиту от удаления",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
-            }
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-        }
-    }
-}
-
-@Composable
-private fun TasksSummaryCard(count: Int, onClick: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EmojiIcon(R.drawable.ic_emoji_check, size = 28.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Задания и запросы", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "$count ждут вашего решения",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
-            }
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
-    }
-}
-
-@Composable
-private fun RowDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .padding(start = 60.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-    )
-}
-
-@Composable
-private fun AppRow(app: AppRow, onClick: () -> Unit) {
-    val (fg, bg) = categoryColors(app.category)
-    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppIcon(packageName = app.packageName, label = app.appLabel, fg = fg, bg = bg, iconBase64 = app.iconBase64)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = app.appLabel, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                if (app.category == AppCategory.TIMED) {
-                    Text(
-                        text = "${app.usedMinutesToday} из ${app.effectiveDailyLimitMinutes ?: 0} мин" +
-                            if (app.bonusMinutesToday > 0) " (+${app.bonusMinutesToday} за задание)" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f)
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            StatusIndicator(app = app, fg = fg)
-        }
-        val dailyLimit = app.effectiveDailyLimitMinutes
-        if (app.category == AppCategory.TIMED && dailyLimit != null && dailyLimit > 0) {
-            val progress = (app.usedMinutesToday.toFloat() / dailyLimit).coerceIn(0f, 1f)
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 60.dp, end = 16.dp, bottom = 8.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = if (progress >= 1f) MaterialTheme.colorScheme.error else fg,
-                trackColor = bg
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatusIndicator(app: AppRow, fg: Color) {
-    val text = when (app.category) {
-        AppCategory.BLOCKED -> "🔒"
-        AppCategory.TIMED -> "${app.effectiveDailyLimitMinutes ?: 0} мин"
-        AppCategory.UNRESTRICTED -> "∞"
-    }
-    Text(text = text, style = MaterialTheme.typography.labelLarge, color = fg, fontWeight = FontWeight.Bold)
-}
-
-@Composable
-private fun categoryColors(category: AppCategory): Pair<Color, Color> = when (category) {
-    AppCategory.BLOCKED -> CategoryBlocked to CategoryBlockedBg
-    AppCategory.TIMED -> CategoryTimed to CategoryTimedBg
-    AppCategory.UNRESTRICTED -> CategoryFree to CategoryFreeBg
 }
 
 @Composable
@@ -849,15 +509,15 @@ private fun MoreTabContent(
     ringActive: Boolean,
     onStopRinging: () -> Unit,
     onSetRingerNormal: () -> Unit,
-    onEnableLocation: () -> Unit,
     onAddChild: () -> Unit,
     onInviteParent: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onSignOut: () -> Unit
 ) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_phone_device,
+                iconRes = CoreR.drawable.nest_ic_smartphone,
                 title = "Добавить ребёнка",
                 subtitle = "Привязать телефон ещё одного ребёнка",
                 onClick = onAddChild
@@ -865,7 +525,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_family,
+                iconRes = CoreR.drawable.nest_ic_users,
                 title = "Пригласить второго родителя",
                 subtitle = "Код, чтобы второй родитель видел всех детей в своём приложении",
                 onClick = onInviteParent
@@ -873,7 +533,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_family,
+                iconRes = CoreR.drawable.nest_ic_users,
                 title = "Настройки семьи",
                 subtitle = "Имя ребёнка, телефон для SOS, общий лимит",
                 onClick = onOpenFamilySettings
@@ -881,7 +541,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_shield,
+                iconRes = CoreR.drawable.nest_ic_shield,
                 title = "Код защиты и вход",
                 subtitle = "Сменить код, вход по отпечатку",
                 onClick = onOpenSecurity
@@ -889,7 +549,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_moon,
+                iconRes = CoreR.drawable.nest_ic_moon,
                 title = "Расписания блокировок",
                 subtitle = "Сон, уроки и другие периоды недоступности",
                 onClick = onOpenSchedules
@@ -897,7 +557,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_calendar,
+                iconRes = CoreR.drawable.nest_ic_calendar,
                 title = "Лимиты по дням недели",
                 subtitle = "Разное время на приложение в разные дни",
                 onClick = onOpenWeeklyLimits
@@ -905,7 +565,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_bell,
+                iconRes = CoreR.drawable.nest_ic_bell,
                 title = "Журнал событий",
                 subtitle = "Установки, лимиты, SOS, попытки удаления",
                 onClick = onOpenEvents
@@ -913,7 +573,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_package,
+                iconRes = CoreR.drawable.nest_ic_package,
                 title = "Новые приложения",
                 subtitle = "Разрешить или запретить недавно установленные",
                 onClick = onOpenInstallApprovals
@@ -921,7 +581,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_laptop,
+                iconRes = CoreR.drawable.nest_ic_laptop,
                 title = "Добавить устройство",
                 subtitle = "Привязать ноутбук ребёнка и ставить лимит времени с телефона",
                 onClick = onOpenDevicePairing
@@ -929,7 +589,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_phone_device,
+                iconRes = CoreR.drawable.nest_ic_smartphone,
                 title = "Переподключить телефон ребёнка",
                 subtitle = "Если ребёнок удалил приложение — подключить заново",
                 onClick = onOpenReconnectChild
@@ -937,7 +597,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_stethoscope,
+                iconRes = CoreR.drawable.nest_ic_stethoscope,
                 title = "Диагностика устройства ребёнка",
                 subtitle = "Проверить, всё ли настроено правильно",
                 onClick = onOpenDeviceStatus
@@ -945,7 +605,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_speaker,
+                iconRes = CoreR.drawable.nest_ic_volume_2,
                 title = if (ringActive) "Остановить сигнал" else "Найти телефон",
                 subtitle = "Громкий сигнал на ~45 секунд, даже в беззвучном режиме",
                 onClick = if (ringActive) onStopRinging else onRingDevice
@@ -961,7 +621,7 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_bell,
+                iconRes = CoreR.drawable.nest_ic_bell,
                 title = "Включить звук на телефоне",
                 subtitle = "Выйти из беззвучного/вибро режима (нужно доп. разрешение у ребёнка)",
                 onClick = onSetRingerNormal
@@ -969,15 +629,15 @@ private fun MoreTabContent(
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_map_pin,
-                title = "Включить геолокацию",
-                subtitle = "Если ребёнок её отключил",
-                onClick = onEnableLocation
+                iconRes = CoreR.drawable.nest_ic_trash_2,
+                title = "Удалить аккаунт",
+                subtitle = "Навсегда удалить аккаунт и данные детей",
+                onClick = onDeleteAccount
             )
         }
         item {
             SettingsRow(
-                iconRes = R.drawable.ic_emoji_door,
+                iconRes = CoreR.drawable.nest_ic_log_out,
                 title = "Выйти",
                 subtitle = null,
                 onClick = onSignOut
@@ -988,25 +648,8 @@ private fun MoreTabContent(
 
 @Composable
 private fun SettingsRow(@DrawableRes iconRes: Int, title: String, subtitle: String?, onClick: () -> Unit) {
-    Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            EmojiIcon(iconRes, size = 28.dp)
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-                if (subtitle != null) {
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f)
-                    )
-                }
-            }
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
-        }
+    NestCard(modifier = Modifier.fillMaxWidth(), onClick = onClick, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+        NestListRow(title = title, subtitle = subtitle, icon = iconRes)
     }
 }
 
@@ -1148,4 +791,11 @@ private fun ModeOption(
             }
         }
     }
+}
+
+@Composable
+private fun categoryColors(category: AppCategory): Pair<Color, Color> = when (category) {
+    AppCategory.BLOCKED -> CategoryBlocked to CategoryBlockedBg
+    AppCategory.TIMED -> CategoryTimed to CategoryTimedBg
+    AppCategory.UNRESTRICTED -> CategoryFree to CategoryFreeBg
 }

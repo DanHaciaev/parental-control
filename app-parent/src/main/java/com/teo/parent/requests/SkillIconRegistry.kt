@@ -1,33 +1,34 @@
 package com.teo.parent.requests
 
 import androidx.annotation.DrawableRes
+import com.teo.core.R as CoreR
 import com.teo.parent.R
 
 /** Maps SkillTemplateCatalog ids to the bundled Twemoji-derived drawable — see EmojiIcon.kt for why. */
 object SkillIconRegistry {
     private val mapping: Map<String, Int> = mapOf(
-        "logic" to R.drawable.ic_emoji_puzzle,
-        "math" to R.drawable.ic_emoji_numbers,
-        "reading" to R.drawable.ic_emoji_book,
-        "english" to R.drawable.ic_emoji_abc,
-        "writing" to R.drawable.ic_emoji_writing_hand,
-        "music" to R.drawable.ic_emoji_music_note,
-        "squats" to R.drawable.ic_emoji_weightlifter,
-        "jumps" to R.drawable.ic_emoji_jumping,
-        "pushups" to R.drawable.ic_emoji_flexed_biceps,
-        "situps" to R.drawable.ic_emoji_fire,
-        "stretching" to R.drawable.ic_emoji_lotus,
-        "steps" to R.drawable.ic_emoji_walking,
-        "walk" to R.drawable.ic_emoji_tree,
-        "clean_room" to R.drawable.ic_emoji_broom,
-        "dishes" to R.drawable.ic_emoji_plate,
-        "make_bed" to R.drawable.ic_emoji_bed,
-        "trash" to R.drawable.ic_emoji_trash,
-        "water_plants" to R.drawable.ic_emoji_seedling,
-        "cooking_help" to R.drawable.ic_emoji_cooking,
-        "feed_pet" to R.drawable.ic_emoji_paw
+        "logic" to CoreR.drawable.nest_ic_puzzle,
+        "math" to CoreR.drawable.nest_ic_hash,
+        "reading" to CoreR.drawable.nest_ic_book_open,
+        "english" to CoreR.drawable.nest_ic_case_sensitive,
+        "writing" to CoreR.drawable.nest_ic_pen_line,
+        "music" to CoreR.drawable.nest_ic_music,
+        "squats" to CoreR.drawable.nest_ic_dumbbell,
+        "jumps" to CoreR.drawable.nest_ic_activity,
+        "pushups" to CoreR.drawable.nest_ic_biceps_flexed,
+        "situps" to CoreR.drawable.nest_ic_flame,
+        "stretching" to CoreR.drawable.nest_ic_flower,
+        "steps" to CoreR.drawable.nest_ic_footprints,
+        "walk" to CoreR.drawable.nest_ic_tree_pine,
+        "clean_room" to CoreR.drawable.nest_ic_brush,
+        "dishes" to CoreR.drawable.nest_ic_utensils,
+        "make_bed" to CoreR.drawable.nest_ic_bed_double,
+        "trash" to CoreR.drawable.nest_ic_trash_2,
+        "water_plants" to CoreR.drawable.nest_ic_sprout,
+        "cooking_help" to CoreR.drawable.nest_ic_chef_hat,
+        "feed_pet" to CoreR.drawable.nest_ic_paw_print
     )
 
     @DrawableRes
-    fun forTemplateId(id: String): Int = mapping[id] ?: R.drawable.ic_emoji_check
+    fun forTemplateId(id: String): Int = mapping[id] ?: CoreR.drawable.nest_ic_square_check
 }

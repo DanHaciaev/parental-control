@@ -37,6 +37,12 @@ class PairingViewModel @Inject constructor(
      *  intentionally turns Device Admin back off and must not bounce the child into onboarding. */
     val onboardingComplete: Flow<Boolean> = childPreferences.onboardingComplete
 
+    val monitoringConsent: Flow<Boolean?> = childPreferences.monitoringConsent
+
+    fun acceptMonitoringConsent() {
+        viewModelScope.launch { childPreferences.setMonitoringConsent() }
+    }
+
     fun markOnboardingComplete() {
         viewModelScope.launch { childPreferences.setOnboardingComplete() }
     }

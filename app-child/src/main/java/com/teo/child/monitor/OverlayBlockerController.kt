@@ -1,5 +1,11 @@
 package com.teo.child.monitor
 
+import com.teo.core.R as CoreR
+import androidx.core.content.res.ResourcesCompat
+import android.widget.ImageView
+import android.os.Build
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -81,8 +87,20 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
         val density = context.resources.displayMetrics.density
         val buttonWidth = (280 * density).toInt()
 
+        // A3 look in plain Views (this is a WindowManager overlay, not a Compose host): navy
+        // full-screen block, white Manrope text, lock mark, rounded buttons.
+        val manrope = ResourcesCompat.getFont(context, CoreR.font.manrope)
+        fun weight(w: Int): Typeface? = manrope?.let {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) Typeface.create(it, w, false) else it
+        }
+        fun rounded(fill: Int, strokeColor: Int? = null) = GradientDrawable().apply {
+            cornerRadius = 18 * density
+            setColor(fill)
+            if (strokeColor != null) setStroke((1 * density).toInt(), strokeColor)
+        }
+
         val root = FrameLayout(context).apply {
-            setBackgroundColor(Color.parseColor("#FFF8F1"))
+            setBackgroundColor(NAVY_HEADER)
             isFocusableInTouchMode = true
             setOnKeyListener { _, keyCode, _ ->
                 // Swallow back presses so the block can't be dismissed by navigating away.
@@ -97,22 +115,51 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
             setPadding(padding, padding, padding, padding)
         }
 
+        val lockMark = FrameLayout(context).apply {
+            background = rounded(Color.argb(30, 255, 255, 255))
+            addView(
+                ImageView(context).apply {
+                    setImageResource(CoreR.drawable.nest_ic_lock)
+                    setColorFilter(Color.WHITE)
+                },
+                FrameLayout.LayoutParams((32 * density).toInt(), (32 * density).toInt(), Gravity.CENTER)
+            )
+            layoutParams = LinearLayout.LayoutParams((64 * density).toInt(), (64 * density).toInt()).apply {
+                bottomMargin = (20 * density).toInt()
+            }
+        }
+
         val titleText = TextView(context).apply {
             text = title
             textSize = 26f
-            setTextColor(Color.parseColor("#2B231D"))
+            typeface = weight(800)
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
         titleView = titleText
 
         val message = TextView(context).apply {
             text = reason
-            textSize = 17f
-            setTextColor(Color.parseColor("#5A5048"))
+            textSize = 16f
+            typeface = weight(500)
+            setTextColor(ON_NAVY_MUTED)
             gravity = Gravity.CENTER
             setPadding(0, (16 * density).toInt(), 0, 0)
         }
         messageView = message
+
+        fun styleButton(button: Button, primary: Boolean) {
+            button.typeface = weight(700)
+            button.stateListAnimator = null
+            button.minHeight = (52 * density).toInt()
+            if (primary) {
+                button.background = rounded(Color.WHITE)
+                button.setTextColor(NAVY_HEADER)
+            } else {
+                button.background = rounded(Color.argb(26, 255, 255, 255), Color.argb(46, 255, 255, 255))
+                button.setTextColor(Color.WHITE)
+            }
+        }
 
         fun actionButtonLayoutParams(topMarginDp: Int) =
             LinearLayout.LayoutParams(buttonWidth, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -134,6 +181,7 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
             }
             layoutParams = actionButtonLayoutParams(32)
         }
+        styleButton(homeButton, primary = true)
         homeButtonView = homeButton
 
         val moreTimeButton = Button(context).apply {
@@ -148,6 +196,7 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
             }
             layoutParams = actionButtonLayoutParams(12)
         }
+        styleButton(moreTimeButton, primary = false)
         requestButton = moreTimeButton
 
         val secondaryActionButton = Button(context).apply {
@@ -158,8 +207,10 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
             setOnClickListener { onAction() }
             layoutParams = actionButtonLayoutParams(if (showHomeButton) 12 else 32)
         }
+        styleButton(secondaryActionButton, primary = !showHomeButton)
         actionButton = secondaryActionButton
 
+        content.addView(lockMark)
         content.addView(titleText)
         content.addView(message)
         content.addView(homeButton)
@@ -197,4 +248,10 @@ class OverlayBlockerController @Inject constructor(@ApplicationContext private v
     }
 
     fun isShowing(): Boolean = overlayView != null
+
+    private companion object {
+        // A3 palette (core NestColors), as ARGB ints for the View-based overlay.
+        const val NAVY_HEADER = 0xFF172E5C.toInt()
+        const val ON_NAVY_MUTED = 0xFFAFC0DD.toInt()
+    }
 }

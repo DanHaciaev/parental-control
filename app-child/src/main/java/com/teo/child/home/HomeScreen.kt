@@ -1,5 +1,16 @@
 package com.teo.child.home
 
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.StatusText
+import com.teo.core.ui.components.StatusBarOnNavy
+import com.teo.core.ui.components.RowDivider
+import com.teo.core.ui.components.NestOnboardingScreen
+import com.teo.core.ui.components.NestNavItem
+import com.teo.core.ui.components.NestHeader
+import com.teo.core.ui.components.NestCard
+import com.teo.core.ui.components.NestBottomBar
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.WindowInsets
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -25,7 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -64,6 +75,7 @@ import com.teo.child.admin.DeviceAdminHelper
 import com.teo.child.data.local.AppBalance
 import com.teo.child.skills.ChildSkillsSection
 import com.teo.child.tasks.ChildTasksSection
+import com.teo.core.R as CoreR
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -118,56 +130,57 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
 }
 
 private enum class HomeTab(@DrawableRes val iconRes: Int, val label: String) {
-    HOME(R.drawable.ic_emoji_home, "Главная"),
-    TASKS(R.drawable.ic_emoji_check, "Задания"),
-    TIME(R.drawable.ic_emoji_alarm_clock, "Время")
+    HOME(CoreR.drawable.nest_ic_house, "Главная"),
+    TASKS(CoreR.drawable.nest_ic_square_check, "Задания"),
+    TIME(CoreR.drawable.nest_ic_alarm_clock, "Время")
 }
 
 @Composable
 private fun HomeTabs(uiState: HomeUiState, onCallParent: (String) -> Unit, onSos: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
+    StatusBarOnNavy()
     Scaffold(
+        containerColor = NestColors.Background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar {
-                HomeTab.entries.forEachIndexed { index, tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { EmojiIcon(tab.iconRes) },
-                        label = { Text(tab.label) }
-                    )
-                }
-            }
+            NestBottomBar(
+                items = HomeTab.entries.map { NestNavItem(it.label, it.iconRes) },
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it }
+            )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (HomeTab.entries[selectedTab]) {
                 HomeTab.HOME -> HomeTabContent(uiState, onCallParent, onSos)
-                HomeTab.TASKS -> TasksTabContent()
-                HomeTab.TIME -> TimeTabContent(uiState)
+                HomeTab.TASKS -> {
+                    TabTitleHeader("Задания", "Выполняй и получай бонусное время")
+                    TasksTabContent()
+                }
+                HomeTab.TIME -> {
+                    TabTitleHeader("Время", "Сколько осталось в приложениях сегодня")
+                    TimeTabContent(uiState)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HomeTabContent(uiState: HomeUiState, onCallParent: (String) -> Unit, onSos: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        Column(modifier = Modifier.align(Alignment.TopStart)) {
-            Text(text = "Привет!", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Вот что происходит сегодня",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-        }
+private fun TabTitleHeader(title: String, subtitle: String) {
+    NestHeader(bottomPadding = 20.dp, compact = true) {
+        Spacer(Modifier.height(4.dp))
+        Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = NestColors.OnNavyMuted)
+    }
+}
 
+@Composable
+private fun HomeTabContent(uiState: HomeUiState, onCallParent: (String) -> Unit, onSos: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabTitleHeader("Привет!", "Если что-то случилось — нажми и держи SOS")
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -181,14 +194,19 @@ private fun HomeTabContent(uiState: HomeUiState, onCallParent: (String) -> Unit,
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "Удерживайте в экстренной ситуации",
-                style = MaterialTheme.typography.bodyLarge,
+                text = "Держи 3 секунды — родитель получит сигнал, и телефон сразу позвонит ему",
+                style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                color = NestColors.InkSecondary,
+                modifier = Modifier.padding(horizontal = 40.dp)
             )
+        }
         }
     }
 }
+
+/** SOS stays a vivid red on purpose — the one place A3's muted danger tone would be too quiet. */
+private val SosRed = Color(0xFFD9443B)
 
 @Composable
 private fun TimeTabContent(uiState: HomeUiState) {
@@ -196,10 +214,8 @@ private fun TimeTabContent(uiState: HomeUiState) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp)
+            .padding(20.dp)
     ) {
-        Text(text = "Время в приложениях", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(20.dp))
 
         if (uiState.balances.isNotEmpty()) {
             BalanceSection(uiState.balances)
@@ -230,7 +246,7 @@ private fun TasksTabContent() {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp)
+            .padding(20.dp)
     ) {
         ChildTasksSection()
         ChildSkillsSection()
@@ -276,15 +292,16 @@ private fun SosButton(sosSent: Boolean, onTriggered: () -> Unit) {
         CircularProgressIndicator(
             progress = { holdProgress },
             modifier = Modifier.fillMaxSize(),
-            color = Color.White,
-            trackColor = Color.Transparent,
+            color = SosRed,
+            trackColor = SosRed.copy(alpha = 0.12f),
             strokeWidth = 9.dp
         )
         Box(
             modifier = Modifier
                 .size(240.dp)
+                .shadow(18.dp, CircleShape, ambientColor = SosRed, spotColor = SosRed)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.error),
+                .background(SosRed),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -300,24 +317,11 @@ private fun SosButton(sosSent: Boolean, onTriggered: () -> Unit) {
 
 @Composable
 private fun TamperedScreen(context: android.content.Context) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = "Защита отключена",
+        subtitle = "Родитель ещё не разрешал удаление. Пожалуйста, включите защиту снова.",
+        headerIcon = CoreR.drawable.nest_ic_shield
     ) {
-        Text(
-            text = "Защита была отключена",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Родитель ещё не разрешал удаление. Пожалуйста, включите защиту снова.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(24.dp))
         Button(
             onClick = { DeviceAdminHelper.requestActivation(context) },
             modifier = Modifier.fillMaxWidth()
@@ -344,17 +348,14 @@ private fun BlockedAppsSection(labels: List<String>) {
     Column {
         Text(text = "Заблокировано родителем", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = labels.joinToString(", "),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(16.dp)
-            )
+        NestCard(modifier = Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { index, label ->
+                if (index > 0) RowDivider()
+                Row(modifier = Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    StatusText("Закрыто", NestColors.Danger, icon = CoreR.drawable.nest_ic_lock)
+                }
+            }
         }
     }
 }
@@ -388,9 +389,10 @@ private fun BalanceSection(balances: List<AppBalance>) {
                     val progress = (balance.usedMinutes.toFloat() / total).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = if (progress >= 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = if (progress >= 1f) NestColors.Danger else NestColors.Navy,
+                        trackColor = NestColors.Divider,
+                        drawStopIndicator = {}
                     )
                 }
             }

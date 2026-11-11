@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.teo.core.R as CoreR
 import com.teo.parent.R
 
 /** Reused by every screen that lists apps (category lists, weekly-limits day view) — long lists of
@@ -26,7 +27,7 @@ fun AppSearchField(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         placeholder = { Text(placeholder) },
         singleLine = true,
-        leadingIcon = { EmojiIcon(R.drawable.ic_emoji_search, size = 20.dp) },
+        leadingIcon = { EmojiIcon(CoreR.drawable.nest_ic_search, size = 20.dp) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) { Text("✕") }

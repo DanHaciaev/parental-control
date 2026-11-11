@@ -1,5 +1,6 @@
 package com.teo.parent.requests
 
+import com.teo.core.ui.theme.NestColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -56,9 +57,10 @@ fun unitLabel(unit: SkillUnit): String = when (unit) {
 
 @Composable
 fun categoryColor(category: String): Color = when (category) {
-    SkillTemplateCatalog.CATEGORY_SKILLS -> MaterialTheme.colorScheme.primaryContainer
-    SkillTemplateCatalog.CATEGORY_ACTIVITY -> MaterialTheme.colorScheme.tertiaryContainer
-    else -> MaterialTheme.colorScheme.secondaryContainer
+    // Three soft A3 tints, one per category.
+    SkillTemplateCatalog.CATEGORY_SKILLS -> NestColors.NavyTint
+    SkillTemplateCatalog.CATEGORY_ACTIVITY -> NestColors.SuccessTint
+    else -> NestColors.WarningTint
 }
 
 /** One category's templates as a horizontally scrolling row of blocks — matches the reference

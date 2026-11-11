@@ -23,6 +23,8 @@ data class FamilySettingsUiState(
     val totalCapEnabled: Boolean = false,
     val totalCapMinutes: String = "60",
     val fullBlockAllowedPackages: Set<String> = emptySet(),
+    val airplaneModeLock: Boolean = false,
+    val locationOffLock: Boolean = false,
     val installedApps: List<InstalledApp> = emptyList(),
     val saved: Boolean = false,
     val errorMessage: String? = null
@@ -56,7 +58,9 @@ class FamilySettingsViewModel @Inject constructor(
                     phone = family?.parentPhone.orEmpty(),
                     totalCapEnabled = family?.totalScreenTimeCapMinutes != null,
                     totalCapMinutes = family?.totalScreenTimeCapMinutes?.toString() ?: "60",
-                    fullBlockAllowedPackages = family?.fullBlockAllowedPackages?.toSet() ?: emptySet()
+                    fullBlockAllowedPackages = family?.fullBlockAllowedPackages?.toSet() ?: emptySet(),
+                    airplaneModeLock = family?.airplaneModeLock ?: false,
+                    locationOffLock = family?.locationOffLock ?: false
                 )
             }
 
@@ -81,7 +85,9 @@ class FamilySettingsViewModel @Inject constructor(
         phone: String,
         totalCapEnabled: Boolean,
         totalCapMinutes: String,
-        fullBlockAllowedPackages: Set<String>
+        fullBlockAllowedPackages: Set<String>,
+        airplaneModeLock: Boolean,
+        locationOffLock: Boolean
     ) {
         val familyId = _uiState.value.familyId ?: return
         val parsedCap = totalCapMinutes.toIntOrNull()
@@ -97,6 +103,7 @@ class FamilySettingsViewModel @Inject constructor(
                 if (phone.isNotBlank()) auth.currentUser?.uid?.let { familyRepository.setParentPhone(it, phone) }
                 familyRepository.setTotalScreenTimeCap(familyId, if (totalCapEnabled) parsedCap else null)
                 familyRepository.setFullBlockAllowedPackages(familyId, fullBlockAllowedPackages.toList())
+                familyRepository.setPhoneLocks(familyId, airplaneModeLock, locationOffLock)
                 _uiState.update {
                     it.copy(
                         saved = true,
@@ -105,7 +112,9 @@ class FamilySettingsViewModel @Inject constructor(
                         phone = if (phone.isNotBlank()) phone else it.phone,
                         totalCapEnabled = totalCapEnabled,
                         totalCapMinutes = totalCapMinutes,
-                        fullBlockAllowedPackages = fullBlockAllowedPackages
+                        fullBlockAllowedPackages = fullBlockAllowedPackages,
+                        airplaneModeLock = airplaneModeLock,
+                        locationOffLock = locationOffLock
                     )
                 }
             } catch (e: Exception) {

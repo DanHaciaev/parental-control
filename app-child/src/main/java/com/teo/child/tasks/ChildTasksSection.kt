@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +47,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.teo.child.home.EmojiIcon
+import com.teo.core.R as CoreR
 import com.teo.core.model.Task
 
 @Composable
@@ -62,7 +63,7 @@ fun ChildTasksSection(viewModel: ChildTasksViewModel = hiltViewModel()) {
             Text(text = "Задания от родителей", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (uiState.approvedCount > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    EmojiIcon(com.teo.child.R.drawable.ic_emoji_fire, size = 20.dp)
+                    EmojiIcon(CoreR.drawable.nest_ic_flame, size = 20.dp)
                     Spacer(Modifier.width(4.dp))
                     Text(text = "${uiState.approvedCount} выполнено", style = MaterialTheme.typography.titleMedium)
                 }

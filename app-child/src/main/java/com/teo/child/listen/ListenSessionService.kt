@@ -203,7 +203,7 @@ class ListenSessionService : Service() {
             manager.createNotificationChannel(channel)
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Мама сейчас слушает вокруг")
+            .setContentTitle("Родитель сейчас слушает звук вокруг")
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

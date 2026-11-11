@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.teo.core.R as CoreR
 import com.teo.core.model.Family
 import com.teo.parent.R
 import com.teo.parent.dashboard.AppIcon
@@ -152,7 +153,7 @@ private fun DayRow(
             Text("$currentCap мин", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.width(4.dp))
             IconButton(onClick = { showCapEditor = true }) {
-                EmojiIcon(R.drawable.ic_emoji_pencil, size = 20.dp)
+                EmojiIcon(CoreR.drawable.nest_ic_pencil, size = 20.dp)
             }
         }
     }

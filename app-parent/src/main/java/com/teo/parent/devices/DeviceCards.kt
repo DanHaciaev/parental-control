@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.teo.core.R as CoreR
 import com.teo.core.model.Device
 import com.teo.parent.R
 import com.teo.parent.dashboard.EmojiIcon
@@ -41,7 +42,7 @@ fun DeviceCard(device: Device, onClick: () -> Unit) {
     Card(onClick = onClick, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                EmojiIcon(R.drawable.ic_emoji_laptop, size = 28.dp)
+                EmojiIcon(CoreR.drawable.nest_ic_laptop, size = 28.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -88,7 +89,7 @@ fun DeviceDetailSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                EmojiIcon(R.drawable.ic_emoji_laptop, size = 32.dp)
+                EmojiIcon(CoreR.drawable.nest_ic_laptop, size = 32.dp)
                 Spacer(Modifier.width(12.dp))
                 Text(text = device.label.ifBlank { "Ноутбук" }, style = MaterialTheme.typography.titleMedium)
             }

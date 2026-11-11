@@ -1,5 +1,7 @@
 package com.teo.parent.pin
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.components.NestOnboardingScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -42,17 +44,7 @@ fun AppLockScreen(viewModel: PinChallengeViewModel, modifier: Modifier = Modifie
     var showForgotDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Введите код защиты",
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(24.dp))
+        NestOnboardingScreen(title = "Nest Parent", subtitle = "Введите код защиты", headerIcon = CoreR.drawable.nest_ic_lock) {
             CodeEntry(
                 secretType = uiState.secretType,
                 loading = uiState.loading,

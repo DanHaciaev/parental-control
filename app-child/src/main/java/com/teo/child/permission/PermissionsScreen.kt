@@ -1,5 +1,10 @@
 package com.teo.child.permission
 
+import androidx.compose.material3.Button
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.StatusText
+import com.teo.core.ui.components.NestOnboardingScreen
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,7 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import com.teo.core.ui.components.NestStyledCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -51,6 +56,7 @@ fun PermissionsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsState()
     var showAccessibilityExplainer by remember { mutableStateOf(false) }
+    var pendingDisclosure by remember { mutableStateOf<SensitivePermission?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -88,27 +94,11 @@ fun PermissionsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.setRecordAudioGranted(granted) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
+    NestOnboardingScreen(
+        title = "Разрешения",
+        subtitle = "Это нужно, чтобы приложение действительно работало — по одному разу для каждого пункта.",
+        headerIcon = CoreR.drawable.nest_ic_list_checks
     ) {
-        Text(
-            text = "Осталось немного настроек",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Это нужно, чтобы приложение действительно работало — по одному разу для каждого пункта.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            modifier = Modifier.fillMaxWidth()
-        )
         Spacer(Modifier.height(24.dp))
 
         PermissionRow(
@@ -138,7 +128,7 @@ fun PermissionsScreen(
         Spacer(Modifier.height(12.dp))
         PermissionRow(
             title = "Работа в фоне без ограничений",
-            description = "Чтобы телефон не «засыпал» приложение",
+            description = "Откроются настройки Nest Kid: Аккумулятор → «Без ограничений»",
             granted = uiState.batteryExempt,
             onClick = { BatteryOptimizationHelper.requestIgnore(context) }
         )
@@ -160,7 +150,7 @@ fun PermissionsScreen(
             title = "Геолокация",
             description = "Чтобы родители видели, где телефон",
             granted = uiState.locationForeground,
-            onClick = { locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) }
+            onClick = { pendingDisclosure = SensitivePermission.LOCATION }
         )
         if (uiState.locationForeground) {
             Spacer(Modifier.height(12.dp))
@@ -176,7 +166,7 @@ fun PermissionsScreen(
             title = "Защита от удаления",
             description = "Чтобы приложение нельзя было удалить без разрешения родителя",
             granted = uiState.deviceAdmin,
-            onClick = { DeviceAdminHelper.requestActivation(context) }
+            onClick = { pendingDisclosure = SensitivePermission.DEVICE_ADMIN }
         )
         Spacer(Modifier.height(12.dp))
         PermissionRow(
@@ -213,16 +203,33 @@ fun PermissionsScreen(
         Spacer(Modifier.height(12.dp))
         PermissionRow(
             title = "Микрофон (необязательно)",
-            description = "Для «Послушать вокруг» — при запросе от мамы микрофон включается сразу",
+            description = "Для «Послушать вокруг» — по запросу родителя, с уведомлением на этом телефоне",
             granted = uiState.recordAudio,
-            onClick = { recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+            onClick = { pendingDisclosure = SensitivePermission.MICROPHONE }
         )
         Spacer(Modifier.height(12.dp))
         PermissionRow(
             title = "Специальные возможности",
-            description = "Дополнительная защита от удаления через настройки",
+            description = "Блокировка приложений, история YouTube и Chrome, защита от удаления",
             granted = uiState.accessibility,
-            onClick = { showAccessibilityExplainer = true }
+            onClick = { pendingDisclosure = SensitivePermission.ACCESSIBILITY }
+        )
+    }
+
+    pendingDisclosure?.let { permission ->
+        PermissionDisclosureDialog(
+            title = permission.title,
+            text = permission.text,
+            onAgree = {
+                pendingDisclosure = null
+                when (permission) {
+                    SensitivePermission.LOCATION -> locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    SensitivePermission.DEVICE_ADMIN -> DeviceAdminHelper.requestActivation(context)
+                    SensitivePermission.MICROPHONE -> recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    SensitivePermission.ACCESSIBILITY -> showAccessibilityExplainer = true
+                }
+            },
+            onDismiss = { pendingDisclosure = null }
         )
     }
 
@@ -279,10 +286,42 @@ private fun PermissionRow(
             }
             Spacer(Modifier.width(12.dp))
             if (granted) {
-                Text(text = "Готово", color = MaterialTheme.colorScheme.secondary)
+                StatusText("Готово", NestColors.Success, icon = CoreR.drawable.nest_ic_circle_check)
             } else {
-                OutlinedButton(onClick = onClick) { Text("Разрешить") }
+                Button(onClick = onClick) { Text("Разрешить") }
             }
         }
     }
+}
+
+/** The permissions that get their own explanation before the system screen — see
+ *  PermissionDisclosureDialog. Location wording follows Google Play's background-location rules
+ *  (says "местоположение" and that it works when the app is closed). */
+private enum class SensitivePermission(val title: String, val text: String) {
+    LOCATION(
+        "Доступ к местоположению",
+        "Nest Kid собирает данные о местоположении этого телефона, чтобы родители видели на карте, где находится " +
+            "ребёнок, — даже когда приложение закрыто или не используется. " +
+            "Местоположение видят только родители этой семьи. На следующем шаге выберите «Разрешить в любом режиме»."
+    ),
+    ACCESSIBILITY(
+        "Специальные возможности",
+        "Nest Kid использует службу специальных возможностей, чтобы видеть, какое приложение открыто на экране, " +
+            "и сразу закрывать заблокированные родителем; замечать установку новых приложений из Google Play; " +
+            "читать на экране названия видео в YouTube и адреса страниц " +
+            "в Chrome — их видят родители в разделе «История»; не давать удалить или отключить Nest Kid без кода " +
+            "родителя; срабатывать на SOS, когда зажаты обе кнопки громкости. Другие тексты с экрана не сохраняются " +
+            "и никуда не отправляются."
+    ),
+    DEVICE_ADMIN(
+        "Защита от удаления",
+        "Nest Kid станет администратором устройства. Это нужно только для того, чтобы приложение нельзя было удалить " +
+            "без кода защиты родителя. Никаких других прав администратора приложение не использует: оно не стирает " +
+            "данные, не меняет пароль экрана и не блокирует телефон через эту функцию."
+    ),
+    MICROPHONE(
+        "Микрофон",
+        "Родитель сможет на время включить «Послушать вокруг» и слышать звук рядом с телефоном ребёнка. Пока это " +
+            "происходит, на этом телефоне видно уведомление. Звук передаётся только родителю в реальном времени и не записывается."
+    )
 }

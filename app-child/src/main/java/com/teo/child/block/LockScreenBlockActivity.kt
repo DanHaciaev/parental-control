@@ -1,5 +1,17 @@
 package com.teo.child.block
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.StatusBarOnNavy
+import com.teo.core.ui.components.NestIcon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Build
@@ -124,14 +136,26 @@ private fun LockScreenBlockScreen(title: String, reason: String, actionLabel: St
     // Swallows back presses the same way OverlayBlockerController's overlay does — this block
     // can't be dismissed by navigating away.
     BackHandler(enabled = true) {}
+    // Same navy full-screen look as the overlay (OverlayBlockerController), white status icons.
+    StatusBarOnNavy()
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier.fillMaxSize().background(NestColors.NavyHeader).padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(16.dp))
-        Text(text = reason, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(24.dp))
-        Button(onClick = onAction, modifier = Modifier.fillMaxWidth()) { Text(actionLabel) }
+        Box(
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) { NestIcon(CoreR.drawable.nest_ic_lock, tint = Color.White, size = 32.dp) }
+        Spacer(Modifier.height(20.dp))
+        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+        Text(text = reason, style = MaterialTheme.typography.bodyLarge, color = NestColors.OnNavyMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(32.dp))
+        Button(
+            onClick = onAction,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = NestColors.NavyHeader),
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) { Text(actionLabel, style = MaterialTheme.typography.labelLarge) }
     }
 }

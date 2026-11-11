@@ -1,5 +1,9 @@
 package com.teo.parent.pin
 
+import com.teo.core.R as CoreR
+import com.teo.core.ui.theme.NestColors
+import com.teo.core.ui.components.NestOnboardingScreen
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +43,7 @@ fun SetPinScreen(
     onSaved: () -> Unit,
     title: String = "Придумайте код защиты",
     onCancel: (() -> Unit)? = null,
+    embedded: Boolean = false,
     viewModel: SetPinViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -79,21 +84,29 @@ fun SetPinScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 32.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Код нужен, чтобы открыть это приложение и чтобы удалить приложение у вас или у ребёнка. Не говорите его детям.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
-        Spacer(Modifier.height(24.dp))
+    val explanation = "Код нужен, чтобы открыть это приложение и чтобы удалить приложение у вас или у ребёнка. Не говорите его детям."
+    // Embedded under another screen's header (code change in settings) it's a plain column; on
+    // its own (first setup, forced reset) it gets the full navy onboarding header.
+    val container: @Composable (@Composable ColumnScope.() -> Unit) -> Unit = if (embedded) {
+        { body ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 20.dp)
+            ) {
+                Text(text = title, style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(6.dp))
+                Text(text = explanation, style = MaterialTheme.typography.bodyMedium, color = NestColors.InkSecondary)
+                Spacer(Modifier.height(20.dp))
+                body()
+            }
+        }
+    } else {
+        { body -> NestOnboardingScreen(title = title, subtitle = explanation, headerIcon = CoreR.drawable.nest_ic_key_round, content = body) }
+    }
+
+    container {
 
         if (!confirming) {
             Text("Вид кода", style = MaterialTheme.typography.titleSmall)

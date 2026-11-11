@@ -12,28 +12,36 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
-    <!-- Not grantable at runtime by the app itself — must be handed to it once via
-         `adb shell pm grant com.teo.child android.permission.WRITE_SECURE_SETTINGS` when the
-         device is set up, so the parent can remotely turn airplane mode/location back on if the
-         child uses them to dodge every other block. See MonitorForegroundService's command
-         handler. Doesn't survive an uninstall+reinstall without redoing that step. -->
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
-        tools:ignore="ProtectedPermissions" />
     <!-- "Послушать вокруг" — captured automatically on each parent request, once this permission
          is granted (see ListenConsentActivity/ListenSessionService); a persistent notification is
          the only on-device indicator while it's live. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
+    <!-- Package visibility: only apps with a launcher icon (all the parent manages — installed-app
+         list, labels, icons, new-install broadcasts) plus the home screen, so the launcher can be
+         recognised as an exit. Narrower than QUERY_ALL_PACKAGES, which Play restricts. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
+
+    <!-- enableOnBackInvokedCallback="false": since targeting Android 16, predictive back stops
+         delivering KEYCODE_BACK to app windows — and the block overlay
+         (OverlayBlockerController) relies on swallowing exactly that key so a blocked app
+         can't be escaped with a back swipe. -->
     <application
         android:name=".ChildApp"
         android:allowBackup="false"
@@ -41,7 +49,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.ParentalControl"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="false"
+        tools:targetApi="33">
+
+        <!-- Declares this as a parental-monitoring app (Google Play's stalkerware policy):
+             required on every build Play sees, and Play Protect tells the user a monitoring app
+             is installed. -->
+        <meta-data android:name="isMonitoringTool" android:value="child_monitoring" />
 
         <activity
             android:name=".MainActivity"
